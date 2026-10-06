@@ -33,7 +33,9 @@ kortex --check
 
 ## La schermata iniziale
 
-All'avvio parte un'animazione di circa 9 secondi: una rete di collegamenti che porta dati al centro, un cervello a circuiti che si accende — diverso a ogni avvio — un teschio che si forma sopra il cervello, si crepa e accende gli occhi, poi il nome e la firma del creatore. Si salta premendo un tasto qualsiasi, o del tutto con `kortex --no-anim`. Su schermi piccoli parte una versione corta.
+All'avvio parte un'animazione di circa 10 secondi: una rete di collegamenti che porta dati al centro, un cervello a circuiti che si accende — diverso a ogni avvio — un teschio che si forma sopra il cervello, si crepa con una scossa e accende gli occhi, scintille dalla crepa, poi il nome KORTEX e la dedica al creatore in caratteri grandi. Si salta con un tasto qualsiasi, o del tutto con `kortex --no-anim`.
+
+Si adatta allo schermo: a tutto schermo il teschio è in scala doppia (tripla sui monitor alti) con il testo a fianco; in una finestra normale è in scala singola con il testo sotto; sul telefono parte una versione corta. L'icona nel menu e Ctrl+Alt+K aprono il terminale **a schermo intero** (serve `wmctrl`: `sudo apt install -y wmctrl`).
 
 ## Due modi di lavorare
 

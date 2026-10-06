@@ -56,9 +56,23 @@ if [ "$MACCHINA" = "Linux" ]; then
   echo "== Lanciatore e icona =="
   mkdir -p "$HOME/progetti" "$HOME/.local/share/icons" "$HOME/.local/share/applications"
 
-  # Apre KORTEX nella cartella ~/progetti e, all'uscita, lascia il terminale aperto lì.
-  printf '#!/usr/bin/env bash\ncd "$HOME/progetti"\n"%s/kortex"\nexec bash\n' "$DEST" > "$DEST/kortex-avvia"
+  # Apre KORTEX a schermo intero nella cartella ~/progetti e, all'uscita, lascia il terminale aperto lì.
+  cat > "$DEST/kortex-avvia" << EOF
+#!/usr/bin/env bash
+cd "\$HOME/progetti"
+if [ -n "\$DISPLAY" ]; then
+  sleep 0.3
+  if command -v wmctrl > /dev/null; then wmctrl -r :ACTIVE: -b add,fullscreen
+  elif command -v xdotool > /dev/null; then xdotool getactivewindow key F11; fi
+fi
+"$DEST/kortex"
+if [ -n "\$DISPLAY" ] && command -v wmctrl > /dev/null; then wmctrl -r :ACTIVE: -b remove,fullscreen; fi
+exec bash
+EOF
   chmod +x "$DEST/kortex-avvia"
+  if ! command -v wmctrl > /dev/null && ! command -v xdotool > /dev/null; then
+    echo "Per aprire KORTEX a schermo intero serve wmctrl:  sudo apt install -y wmctrl"
+  fi
 
   cp "$QUI/assets/kortex.svg" "$HOME/.local/share/icons/kortex.svg"
 
