@@ -2,44 +2,97 @@
   "brand": {
     "nome": "KORTEX",
     "tagline": "la corteccia delle tue IA",
-    "colori": ["#9D4EDD", "#FF2BD6", "#00F5FF"]
+    "colori": [
+      "#9D4EDD",
+      "#FF2BD6",
+      "#00F5FF"
+    ]
   },
   "autonomia": "prudente",
+  "mappa": "STANDARD",
+  "maxCompiti": 3,
+  "usaPianificatore": true,
+  "usaRevisore": true,
+  "revisoreIndipendente": true,
+  "memoriaRighe": 30,
+  "animazioni": "piena",
   "timeoutSecondi": 900,
   "maxCorrezioni": 1,
   "ruoli": {
-    "direttore": ["claude", "gemini", "codex", "ollama"],
-    "pianificatore": ["claude", "gemini", "codex", "ollama"],
-    "esecutore": ["claude", "codex"],
-    "revisore": ["gemini", "codex", "claude", "ollama"]
+    "direttore": [
+      "claude",
+      "gemini",
+      "codex",
+      "ollama"
+    ],
+    "pianificatore": [
+      "claude",
+      "gemini",
+      "codex",
+      "ollama"
+    ],
+    "esecutore": [
+      "claude",
+      "codex"
+    ],
+    "revisore": [
+      "gemini",
+      "codex",
+      "claude",
+      "ollama"
+    ]
   },
   "ia": {
     "claude": {
       "nome": "Claude",
       "bin": "claude",
-      "args": ["-p", "{prompt}", "--output-format", "stream-json", "--verbose", "{resume}", "{extra}"],
-      "resume": ["--resume", "{session}"],
+      "args": [
+        "-p",
+        "{prompt}",
+        "--output-format",
+        "stream-json",
+        "--verbose",
+        "{resume}",
+        "{extra}"
+      ],
+      "resume": [
+        "--resume",
+        "{session}"
+      ],
       "parser": "claude-stream",
       "puntiForti": "ragionamento, codice complesso, modifiche coordinate su più file"
     },
     "codex": {
       "nome": "Codex",
       "bin": "codex",
-      "args": ["exec", "--skip-git-repo-check", "{extra}", "{prompt}"],
+      "args": [
+        "exec",
+        "--skip-git-repo-check",
+        "{extra}",
+        "{prompt}"
+      ],
       "parser": "testo",
       "puntiForti": "scrittura di codice e script, correzioni mirate"
     },
     "gemini": {
       "nome": "Gemini",
       "bin": "gemini",
-      "args": ["{extra}", "-p", "{prompt}"],
+      "args": [
+        "{extra}",
+        "-p",
+        "{prompt}"
+      ],
       "parser": "testo",
       "puntiForti": "analisi di testi e progetti grandi, revisione"
     },
     "ollama": {
       "nome": "Ollama",
       "bin": "ollama",
-      "args": ["run", "{modello}", "{prompt}"],
+      "args": [
+        "run",
+        "{modello}",
+        "{prompt}"
+      ],
       "parser": "testo",
       "modello": "auto",
       "puntiForti": "compiti semplici, funziona senza internet"
@@ -48,20 +101,35 @@
   "profili": {
     "lettura": {
       "claude": [],
-      "codex": ["--sandbox", "read-only"],
+      "codex": [
+        "--sandbox",
+        "read-only"
+      ],
       "gemini": [],
       "ollama": []
     },
     "prudente": {
-      "claude": ["--permission-mode", "acceptEdits"],
-      "codex": ["--sandbox", "workspace-write"],
+      "claude": [
+        "--permission-mode",
+        "acceptEdits"
+      ],
+      "codex": [
+        "--sandbox",
+        "workspace-write"
+      ],
       "gemini": [],
       "ollama": []
     },
     "totale": {
-      "claude": ["--dangerously-skip-permissions"],
-      "codex": ["--dangerously-bypass-approvals-and-sandbox"],
-      "gemini": ["--yolo"],
+      "claude": [
+        "--dangerously-skip-permissions"
+      ],
+      "codex": [
+        "--dangerously-bypass-approvals-and-sandbox"
+      ],
+      "gemini": [
+        "--yolo"
+      ],
       "ollama": []
     }
   }

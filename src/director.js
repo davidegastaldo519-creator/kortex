@@ -25,6 +25,7 @@ export async function eseguiRuolo(ruolo, prompt, ctx, opz = {}) {
   for (const id of lista) {
     const cfg = config.ia[id];
     ui.ruolo(ruolo, 'lavoro', id);
+    const chiudi = ctx.tel?.inizio(id, ruolo) || (() => {});
     const modello = id === 'ollama'
       ? (cfg.modello === 'auto' ? disponibili.ollama?.modelli?.[0] : cfg.modello)
       : undefined;
@@ -37,9 +38,10 @@ export async function eseguiRuolo(ruolo, prompt, ctx, opz = {}) {
       extra: config.profili?.[profilo]?.[id] || [],
       modello,
       timeoutSecondi: config.timeoutSecondi,
-      onTesto: opz.mostra === false ? null : (t) => ui.out(t),
-      onLog: (m) => ui.log(m),
+      onTesto: (t) => { ctx.tel?.evento(); if (opz.mostra !== false) ui.out(t); },
+      onLog: (m) => { ctx.tel?.evento(); ui.log(m); },
     });
+    chiudi(r);
 
     if (r.ok) {
       if (r.sessione && opz.chiaveSessione) stato.salvaSessione(id, chiave, r.sessione);
@@ -65,7 +67,7 @@ function esecutoriDisponibili(ctx) {
 const promptDirettore = (richiesta, ctx) => `Sei il DIRETTORE di un gruppo di IA che lavora nella cartella di progetto: ${ctx.cwd}
 
 Memoria del progetto (ultime voci del diario):
-${ctx.stato.memoria(30) || '(progetto nuovo, nessuna memoria)'}
+${ctx.stato.memoria(ctx.config.memoriaRighe || 30) || '(progetto nuovo, nessuna memoria)'}
 
 Esecutori disponibili e loro punti forti:
 ${esecutoriDisponibili(ctx) || '(nessuno)'}
@@ -73,7 +75,7 @@ ${esecutoriDisponibili(ctx) || '(nessuno)'}
 Richiesta dell'utente:
 ${richiesta}
 
-Scomponi la richiesta in compiti concreti: il MINOR numero possibile, da 1 a 5. Se la richiesta è semplice, un solo compito.
+Scomponi la richiesta in compiti concreti: il MINOR numero possibile, da 1 a ${ctx.config.maxCompiti || 5}. Se la richiesta è semplice, un solo compito.
 NON modificare file e NON eseguire comandi: tu pianifichi soltanto.
 Per ogni compito scegli l'esecutore più adatto tra quelli disponibili.
 "tipo" vale "codice" se il compito crea o modifica file, "analisi" se serve solo leggere e rispondere.
@@ -161,10 +163,12 @@ async function revisiona(compito, esecuzione, ctx) {
   ctx.ui.titolo(`REVISIONE — ${compito.titolo}`);
   const r = await eseguiRuolo('revisore', promptRevisore(compito, esecuzione.testo, diffProgetto(ctx.cwd)), ctx, {
     modalita: 'lettura',
-    evita: esecuzione.ia, // meglio che a controllare sia un'IA diversa da chi ha fatto il lavoro
+    evita: ctx.config.revisoreIndipendente === false ? null : esecuzione.ia, // occhi nuovi, se possibile
   });
   if (!r.ok) return { esito: 'NON VERIFICATO', note: r.errore, ia: null };
-  return { ...leggiEsito(r.testo), ia: r.ia };
+  const v = { ...leggiEsito(r.testo), ia: r.ia };
+  ctx.ui.pensiero?.('revisione', `${compito.titolo}\nESITO: ${v.esito}\n${v.note}`);
+  return v;
 }
 
 // ---------- il flusso completo ----------
@@ -173,6 +177,7 @@ export async function eseguiRichiesta({ richiesta, ctx }) {
   const { ui, config, stato } = ctx;
   const inizio = Date.now();
 
+  ui.pensiero?.('richiesta', richiesta);
   ui.titolo('DIRETTORE — divido il lavoro');
   const d = await eseguiRuolo('direttore', promptDirettore(richiesta, ctx), ctx, {
     modalita: 'lettura',
@@ -183,15 +188,26 @@ export async function eseguiRichiesta({ richiesta, ctx }) {
     ui.log('⚠ il direttore non ha dato un piano valido: lavoro sulla richiesta intera');
     compiti = [{ titolo: richiesta.slice(0, 60), descrizione: richiesta, tipo: 'codice' }];
   }
-  compiti = compiti.slice(0, 5);
+  compiti = compiti.slice(0, config.maxCompiti || 5);
   compiti.forEach((c, i) => ui.out(`  ${i + 1}. ${c.titolo}  [${c.tipo}${c.esecutore ? ' → ' + c.esecutore : ''}]\n`));
+  const statoCompiti = compiti.map((c) => ({ titolo: c.titolo, stato: 'attesa' }));
+  const segna = (i, stato) => { statoCompiti[i].stato = stato; ui.compiti?.([...statoCompiti]); };
+  ui.compiti?.([...statoCompiti]);
+  ui.pensiero?.('compiti', compiti.map((c, i) => `${i + 1}. ${c.titolo}${c.esecutore ? '  → ' + c.esecutore : ''}\n   ${c.descrizione}`).join('\n'));
 
   const esiti = [];
   for (const [i, c] of compiti.entries()) {
     ui.titolo(`COMPITO ${i + 1}/${compiti.length} — ${c.titolo}`);
 
-    const piano = await eseguiRuolo('pianificatore', promptPiano(c, ctx.cwd), ctx, { modalita: 'lettura' });
-    const testoPiano = piano.ok ? piano.testo : '(nessun piano disponibile: procedi direttamente sul compito)';
+    segna(i, 'lavoro');
+    let testoPiano = '(nessun piano: procedi direttamente sul compito)';
+    if (config.usaPianificatore !== false) {
+      const piano = await eseguiRuolo('pianificatore', promptPiano(c, ctx.cwd), ctx, { modalita: 'lettura' });
+      if (piano.ok) testoPiano = piano.testo;
+      ui.pensiero?.('piano', `${c.titolo}\n${testoPiano}`);
+    } else {
+      ui.ruolo('pianificatore', 'saltato', null);
+    }
 
     ui.titolo(`ESECUZIONE — ${c.titolo}`);
     const chiave = `esecutore-${Date.now()}-${i}`;
@@ -204,12 +220,15 @@ export async function eseguiRichiesta({ richiesta, ctx }) {
     ui.aggiornaFile?.();
     if (!es.ok) {
       esiti.push({ c, esito: 'FALLITO', note: es.errore });
+      segna(i, 'errore');
       continue;
     }
 
-    let rev = await revisiona(c, es, ctx);
+    let rev = { esito: 'OK', note: '(revisione disattivata)', ia: null };
+    if (config.usaRevisore !== false) rev = await revisiona(c, es, ctx);
+    else ui.ruolo('revisore', 'saltato', null);
     let correzioni = 0;
-    while (rev.esito === 'CORREGGI' && correzioni < (config.maxCorrezioni ?? 1)) {
+    while (config.usaRevisore !== false && rev.esito === 'CORREGGI' && correzioni < (config.maxCorrezioni ?? 1)) {
       correzioni++;
       ui.titolo(`CORREZIONE ${correzioni} — ${c.titolo}`);
       // Se l'esecutore sa riprendere la sessione gli mandiamo SOLO le correzioni, non il prompt intero.
@@ -226,6 +245,7 @@ export async function eseguiRichiesta({ richiesta, ctx }) {
       rev = await revisiona(c, es, ctx);
     }
     esiti.push({ c, esito: rev.esito, note: rev.note, esecutore: es.ia, revisore: rev.ia });
+    segna(i, rev.esito === 'OK' ? 'ok' : 'avviso');
   }
 
   // ---------- riepilogo e diario ----------
@@ -269,6 +289,7 @@ export async function chatDiretta({ id, messaggio, ctx, storia }) {
     ? (cfg.modello === 'auto' ? disponibili.ollama?.modelli?.[0] : cfg.modello)
     : undefined;
 
+  const chiudi = ctx.tel?.inizio(id, 'chat') || (() => {});
   const r = await eseguiIA({
     cfg,
     prompt,
@@ -277,9 +298,10 @@ export async function chatDiretta({ id, messaggio, ctx, storia }) {
     extra: config.profili?.[config.autonomia]?.[id] || [],
     modello,
     timeoutSecondi: config.timeoutSecondi,
-    onTesto: (t) => ui.out(t),
-    onLog: (m) => ui.log(m),
+    onTesto: (t) => { ctx.tel?.evento(); ui.out(t); },
+    onLog: (m) => { ctx.tel?.evento(); ui.log(m); },
   });
+  chiudi(r);
   if (r.ok) {
     if (r.sessione) stato.salvaSessione(id, 'chat', r.sessione);
     if (r.costo) ui.costo(r.costo);

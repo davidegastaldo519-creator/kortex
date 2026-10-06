@@ -21,7 +21,7 @@ export async function avvia(argv) {
     }
     const { execSync } = await import('node:child_process');
     console.log(`Aggiorno ${config.brand.nome} da GitHub…`);
-    execSync('git pull --ff-only && bash install.sh', { cwd: RADICE, stdio: 'inherit' });
+    execSync('git checkout -- . && git pull --ff-only && bash install.sh', { cwd: RADICE, stdio: 'inherit' });
     console.log(`Fatto: ${config.brand.nome} ${versione()}`);
     return;
   }

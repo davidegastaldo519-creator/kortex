@@ -23,7 +23,7 @@ fi
 
 if [ -d "$DIR/.git" ]; then
   echo "Già installato: aggiorno all'ultima versione"
-  git -C "$DIR" pull --ff-only
+  git -C "$DIR" checkout -- . && git -C "$DIR" pull --ff-only
 else
   git clone --depth 1 "https://github.com/$REPO.git" "$DIR"
 fi

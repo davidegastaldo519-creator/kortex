@@ -37,6 +37,17 @@ All'avvio parte un'animazione di circa 10 secondi: una rete di collegamenti che 
 
 Si adatta allo schermo: a tutto schermo il teschio è in scala doppia (tripla sui monitor alti) con il testo a fianco; in una finestra normale è in scala singola con il testo sotto; sul telefono parte una versione corta. L'icona nel menu e Ctrl+Alt+K aprono il terminale **a schermo intero** (serve `wmctrl`: `sudo apt install -y wmctrl`).
 
+## Lo studio: quattro pagine
+
+Si passa da una pagina all'altra con **TAB** (e SHIFT+TAB per tornare indietro). ESC riporta sempre a LAVORO.
+
+- **LAVORO** — scrivi le richieste e guardi la squadra lavorare. A sinistra chi sta facendo cosa, al centro l'output (scorrevole con le frecce e PAG SU/GIÙ), a destra i compiti spuntati man mano e i file cambiati.
+- **CONTROLLO** — la plancia della macchina. Ogni parametro ha il suo cursore (↑↓ per scegliere, ←→ per regolare) e una spiegazione. Cinque **mappature** pronte in scala crescente (tasti 1-5): LAMPO, AGILE, STANDARD, ACCURATO, PROFONDO. Grafici in tempo reale di CPU, RAM e *pensieri al secondo*, i cavi animati verso ogni IA e la tabella con chiamate, riuscite, fallite e tempi. Le modifiche si salvano da sole.
+- **STUDIO** — la lavagna: ci trovi scritto il ragionamento dell'ultima richiesta (piano del direttore, passi del pianificatore, verdetti del revisore) e i tuoi appunti, che scrivi con `/nota testo` e restano nel progetto.
+- **GUIDA** — il manuale completo, scorrevole: tasti, comandi, mappature, parametri, problemi comuni.
+
+L'intestazione resta sempre in alto: il teschio in miniatura con gli occhi che pulsano, il nome in gradiente animato, la mappatura attiva, l'autonomia e lo stato della squadra.
+
 ## Due modi di lavorare
 
 ### Squadra (predefinito)
@@ -74,6 +85,9 @@ kortex
 | Comando | Cosa fa |
 |---|---|
 | `/chat X` | chat diretta con una sola IA |
+| `/mappa N` | applica la mappatura da 1 (LAMPO) a 5 (PROFONDO) |
+| `/nota testo` | scrive un appunto sulla lavagna dello STUDIO |
+| `/pagina N` | va alla pagina da 1 a 4 |
 | `/team` | torna alla squadra |
 | `/nuova` | in chat diretta, ricomincia la conversazione |
 | `/ia` | quali IA sono installate e attive |

@@ -48,6 +48,14 @@ export function apriStato(cwd) {
       assicura();
       fs.appendFileSync(fileStato, testo.trimEnd() + '\n\n');
     },
+    appunti() {
+      try { return fs.readFileSync(path.join(dir, 'appunti.md'), 'utf8').trim().split('\n'); } catch { return []; }
+    },
+    annotaAppunto(testo) {
+      assicura();
+      const ora = new Date().toISOString().slice(0, 16).replace('T', ' ');
+      fs.appendFileSync(path.join(dir, 'appunti.md'), `- [${ora}] ${testo}\n`);
+    },
     sessione(ia, chiave) {
       return sessioni[ia]?.[chiave] || null;
     },
