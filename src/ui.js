@@ -267,7 +267,7 @@ function App({ config, disponibili, cwd }) {
       <${Text} color=${occupato ? C.rosa : C.verde}>
         ${occupato ? `${spin} ${modo ? 'risponde' : ruoloAttivo ? ruoloAttivo[1] : 'al lavoro'}` : '● pronto'}
       <//>
-      <${Text} color=${C.grigio}>${costo > 0 ? `  $${costo.toFixed(3)}` : ''}<//>
+      <${Text} color=${C.grigio}>${costo > 0 ? `  ≈$${costo.toFixed(2)} valore API` : ''}<//>
     <//>
 
     <${Box} height=${hMain}>

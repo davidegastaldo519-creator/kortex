@@ -80,7 +80,7 @@ export function eseguiIA({ cfg, prompt, cwd, sessione, extra, modello, timeoutSe
               testo += c.text + '\n';
               onTesto?.(c.text + '\n');
             } else if (c.type === 'tool_use') {
-              onLog?.(`  🔧 ${cfg.nome} → ${c.name}${descriviStrumento(c.input)}`);
+              onLog?.(`  ▸ ${cfg.nome} → ${c.name}${descriviStrumento(c.input)}`);
             }
           }
         }

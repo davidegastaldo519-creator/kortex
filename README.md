@@ -57,7 +57,9 @@ Scrivi cosa vuoi fare. Dietro le quinte:
 
 ## Uso
 
-Entra nella cartella del progetto:
+Sul PC l'installazione aggiunge anche l'icona **KORTEX** nel menu (categoria Sviluppo) e, su Lubuntu, il tasto **Super+K**: aprono KORTEX nella cartella `~/progetti`, pensata per i lavori nuovi.
+
+Per lavorare su un progetto esistente, entra nella sua cartella:
 
 ```
 kortex
@@ -76,6 +78,8 @@ kortex
 | `/esci` o Ctrl+C | esce |
 
 Da riga di comando: `kortex --check`, `kortex --no-anim`, `kortex --aggiorna`, `kortex --versione`.
+
+**Il numero in dollari in alto non è una spesa.** Claude Code riporta quanto costerebbe il lavoro a prezzi API, anche quando usi l'abbonamento a prezzo fisso. Pagheresti davvero solo se sul computer fosse impostata una chiave API (`ANTHROPIC_API_KEY`).
 
 ## Autonomia
 
