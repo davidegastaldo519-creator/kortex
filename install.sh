@@ -72,15 +72,22 @@ if [ "$MACCHINA" = "Linux" ]; then
     "$TERM_CMD" "$DEST" "$HOME" > "$HOME/.local/share/applications/kortex.desktop"
   echo "Icona KORTEX aggiunta al menu (categoria Sviluppo)"
 
-  # Scorciatoia Super+K: solo su Openbox (Lubuntu), una volta sola, con copia di sicurezza.
+  # Scorciatoia Ctrl+Alt+K: solo su Openbox (Lubuntu), una volta sola, con copia di sicurezza.
+  # (Super+K non va: su Lubuntu il tasto Windows lo prende il menu di LXQt.)
   if pgrep -x openbox > /dev/null; then
     CFG=$(ps -o args= -C openbox | grep -o -- '--config-file [^ ]*' | cut -d' ' -f2)
     CFG=${CFG:-$HOME/.config/openbox/rc.xml}
+    # Chi aveva la vecchia Super+K passa a Ctrl+Alt+K.
+    if [ -f "$CFG" ] && grep -q 'key="W-k"><action name="Execute"><command>[^<]*kortex-avvia' "$CFG"; then
+      sed -i 's|key="W-k"\(><action name="Execute"><command>[^<]*kortex-avvia\)|key="C-A-k"\1|' "$CFG"
+      openbox --reconfigure 2> /dev/null || true
+      echo "Scorciatoia spostata su Ctrl+Alt+K"
+    fi
     if [ -f "$CFG" ] && ! grep -q kortex-avvia "$CFG"; then
       cp "$CFG" "$CFG.bak-kortex"
-      sed -i "s|</keyboard>|  <keybind key=\"W-k\"><action name=\"Execute\"><command>$TERM_CMD $DEST/kortex-avvia</command></action></keybind>\n</keyboard>|" "$CFG"
+      sed -i "s|</keyboard>|  <keybind key=\"C-A-k\"><action name=\"Execute\"><command>$TERM_CMD $DEST/kortex-avvia</command></action></keybind>\n</keyboard>|" "$CFG"
       openbox --reconfigure 2> /dev/null || true
-      echo "Scorciatoia Super+K aggiunta"
+      echo "Scorciatoia Ctrl+Alt+K aggiunta"
     fi
   fi
 fi
@@ -89,4 +96,4 @@ echo
 echo "Fatto. Prova:"
 echo "  kortex --check     (quali IA trova su questa macchina)"
 echo "  kortex             (apre l'interfaccia nella cartella in cui ti trovi)"
-[ "$MACCHINA" = "Linux" ] && echo "  oppure l'icona KORTEX nel menu, o Super+K se il desktop è Lubuntu"
+[ "$MACCHINA" = "Linux" ] && echo "  oppure l'icona KORTEX nel menu, o Ctrl+Alt+K se il desktop è Lubuntu"

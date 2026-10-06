@@ -31,6 +31,10 @@ Poi apri un terminale nuovo e controlla quali IA ha trovato:
 kortex --check
 ```
 
+## La schermata iniziale
+
+All'avvio parte un'animazione di circa 9 secondi: una rete di collegamenti che porta dati al centro, un cervello a circuiti che si accende — diverso a ogni avvio — un teschio che si forma sopra il cervello, si crepa e accende gli occhi, poi il nome e la firma del creatore. Si salta premendo un tasto qualsiasi, o del tutto con `kortex --no-anim`. Su schermi piccoli parte una versione corta.
+
 ## Due modi di lavorare
 
 ### Squadra (predefinito)
@@ -57,7 +61,7 @@ Scrivi cosa vuoi fare. Dietro le quinte:
 
 ## Uso
 
-Sul PC l'installazione aggiunge anche l'icona **KORTEX** nel menu (categoria Sviluppo) e, su Lubuntu, il tasto **Super+K**: aprono KORTEX nella cartella `~/progetti`, pensata per i lavori nuovi.
+Sul PC l'installazione aggiunge anche l'icona **KORTEX** nel menu (categoria Sviluppo) e, su Lubuntu, la scorciatoia **Ctrl+Alt+K**: aprono KORTEX nella cartella `~/progetti`, pensata per i lavori nuovi.
 
 Per lavorare su un progetto esistente, entra nella sua cartella:
 

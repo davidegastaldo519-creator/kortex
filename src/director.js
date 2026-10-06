@@ -78,6 +78,11 @@ NON modificare file e NON eseguire comandi: tu pianifichi soltanto.
 Per ogni compito scegli l'esecutore più adatto tra quelli disponibili.
 "tipo" vale "codice" se il compito crea o modifica file, "analisi" se serve solo leggere e rispondere.
 
+Regole sui compiti:
+- Ogni compito deve creare o modificare file DENTRO la cartella del progetto, oppure rispondere a una domanda.
+- NON creare compiti per aprire programmi, avviare il browser, mostrare risultati o eseguire app per l'utente: quelle cose le fa lui. Se l'utente chiede di "aprire" o "vedere" qualcosa, il lavoro finisce quando il file è pronto.
+- Un file creato da un compito deve essere completo in quello stesso compito: non dividere "crea" e "controlla che esista" in compiti separati.
+
 Rispondi SOLO con JSON valido, senza nessun testo prima o dopo:
 {"compiti":[{"titolo":"breve","descrizione":"cosa va fatto, con tutti i dettagli necessari","tipo":"codice","esecutore":"claude"}]}`;
 
@@ -98,7 +103,7 @@ PIANO DA SEGUIRE:
 ${piano}
 
 Regole:
-- lavora solo dentro questa cartella;
+- lavora solo dentro questa cartella e crea i file qui, mai altrove;
 - non cancellare file che non hai creato tu, a meno che il compito non lo chieda esplicitamente;
 - alla fine scrivi un riepilogo breve: quali file hai creato o modificato e cosa hai fatto.`;
 
