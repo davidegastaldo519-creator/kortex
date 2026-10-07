@@ -595,7 +595,13 @@ function App({ config, disponibili, cwd: cwdIniziale, versione }) {
     try { gestisciTasto(ch, key); } catch (e) { ui.current.log(`✖ errore interno (tasto): ${e.message}`, { tipo: 'errore' }); ui.current.notifica('✖ errore interno: guarda il REGISTRO', 'errore'); }
   });
   function gestisciTasto(ch, key) {
-    if (key.ctrl && 'tndfo'.includes(ch)) scartaLettera(ch);
+    if (key.ctrl && 'tndfok'.includes(ch)) scartaLettera(ch);
+    if (key.ctrl && ch === 'k' && occupato) {
+      fermaTutti();
+      ui.current.log('⟳ hai saltato l\'IA che stava lavorando: passo alla riserva', { tipo: 'riserva' });
+      ui.current.notifica('⟳ IA saltata: lavora la riserva', 'avviso');
+      return;
+    }
     if (key.ctrl && ch === 'c') {
       if (pagina === 'lavoro' && fuoco === 'shell' && sessioni.current.interrompi(dest)) return;
       fermaTutti(); sessioni.current.chiudiTutto(); exit(); return;
@@ -682,6 +688,8 @@ function App({ config, disponibili, cwd: cwdIniziale, versione }) {
     }
   }
   const secondiLavoro = occupato ? Math.round((Date.now() - inizioLavoro.current) / 1000) : 0;
+  const durataTesto = (sec) => (sec >= 60 ? Math.floor(sec / 60) + 'm ' + (sec % 60) + 's' : sec + 's');
+  const chiamataAperta = occupato ? [...tel.current.chiamate].reverse().find((x) => !x.fine) : null;
   const barraLavoro = () => {
     const larg = Math.max(10, Math.min(50, c - 70));
     const pieni = Math.round(progresso * larg);
@@ -693,7 +701,8 @@ function App({ config, disponibili, cwd: cwdIniziale, versione }) {
       <${Text} color=${C.rosa}>${SPIN[tick % SPIN.length]} <//>
       ${tratti}<${Text} color=${C.scuro}>${'░'.repeat(larg - pieni)}<//>
       <${Text} color=${C.gesso} bold> ${Math.round(progresso * 100)}%<//>
-      <${Text} color=${C.grigio}>  ${compiti.length ? `compito ${corrente >= 0 ? corrente + 1 : compiti.filter((x) => x.stato !== 'attesa').length}/${compiti.length}` : 'il direttore divide il lavoro'} · ${etichetta} · ${secondiLavoro >= 60 ? Math.floor(secondiLavoro / 60) + 'm ' + (secondiLavoro % 60) + 's' : secondiLavoro + 's'}<//>
+      <${Text} color=${C.grigio}>  ${compiti.length ? `compito ${corrente >= 0 ? corrente + 1 : compiti.filter((x) => x.stato !== 'attesa').length}/${compiti.length}` : 'il direttore divide il lavoro'} · ${etichetta}${chiamataAperta ? ` (${disponibili[chiamataAperta.ia]?.nome || chiamataAperta.ia}, da ${durataTesto(Math.round((Date.now() - chiamataAperta.inizio) / 1000))})` : ''} · totale ${durataTesto(secondiLavoro)}<//>
+      <${Text} color=${chiamataAperta && Date.now() - chiamataAperta.inizio > 180000 ? C.giallo : C.scuro}>   Ctrl+K salta questa IA<//>
     <//>`;
   };
   const colNotifica = { ok: C.verde, avviso: C.giallo, errore: C.rosso, info: C.ciano };

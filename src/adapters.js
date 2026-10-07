@@ -4,14 +4,18 @@ const ANSI = /\x1b\[[0-9;?]*[A-Za-z]/g;
 // Frasi con cui le CLI segnalano che l'abbonamento ha finito il limite.
 const LIMITE = /rate.?limit|usage limit|limit reached|quota|too many requests|\b429\b|resource_exhausted/i;
 // Una CLI che chiede di fare il login o una conferma non può andare avanti qui dentro.
-const CHIEDE_LOGIN = /Opening authentication page|Do you want to continue\? \[Y\/n\]|Please visit the following URL|sign in|log ?in to continue|IneligibleOrProjectId/i;
+const CHIEDE_LOGIN = /Opening authentication page|Do you want to continue\? \[Y\/n\]|Please visit the following URL|sign in|log ?in to continue|IneligibleOrProjectId|trust this folder|Do you trust|\[y\/N\]|\(y\/n\)/i;
 
 const attivi = new Set();
 
+// Ferma una CLI e tutti i processi che ha lanciato (sono nello stesso gruppo).
+function ferma(p) {
+  try { process.kill(-p.pid, 'SIGTERM'); } catch { try { p.kill('SIGTERM'); } catch { /* già chiuso */ } }
+  setTimeout(() => { try { process.kill(-p.pid, 'SIGKILL'); } catch { /* già chiuso */ } }, 2500);
+}
+
 export function fermaTutti() {
-  for (const p of attivi) {
-    try { p.kill('SIGTERM'); } catch { /* già chiuso */ }
-  }
+  for (const p of attivi) ferma(p);
   attivi.clear();
 }
 
@@ -31,7 +35,7 @@ function descriviStrumento(input = {}) {
   return x ? `  ${String(x).slice(0, 70)}` : '';
 }
 
-export function eseguiIA({ cfg, prompt, cwd, sessione, extra, modello, adddir, timeoutSecondi, onTesto, onLog }) {
+export function eseguiIA({ cfg, prompt, cwd, sessione, extra, modello, adddir, timeoutSecondi, silenzioSecondi = 300, onTesto, onLog }) {
   return new Promise((risolvi) => {
     const resume = sessione && cfg.resume ? cfg.resume.map((x) => x.replace('{session}', sessione)) : [];
     const args = costruisciArgs(cfg.args, { prompt, extra, resume, modello, adddir });
@@ -44,6 +48,7 @@ export function eseguiIA({ cfg, prompt, cwd, sessione, extra, modello, adddir, t
         cwd,
         stdio: ['ignore', 'pipe', 'pipe'],
         env: { ...process.env, NO_COLOR: '1', FORCE_COLOR: '0' },
+        detached: true, // un gruppo di processi tutto suo: così si può fermare per intero
       });
     } catch (e) {
       return risolvi({ ok: false, errore: e.message });
@@ -51,6 +56,11 @@ export function eseguiIA({ cfg, prompt, cwd, sessione, extra, modello, adddir, t
     attivi.add(proc);
 
     let buffer = '', testo = '', errori = '', finale = null, costo = null;
+    // Ferma la CLI; se entro 3 secondi non ha chiuso i suoi canali, si va avanti lo stesso.
+    const abbandona = () => {
+      ferma(proc);
+      setTimeout(() => fine({ ok: false, testo: testo.trim(), sessione: sessioneNuova, costo, codice: null, limitato: false, errore: bloccato || errori.trim().split('\n').slice(-1)[0] || 'interrotta' }), 3000);
+    };
     let sessioneNuova = sessione || null;
     let chiuso = false;
     let bloccato = null;
@@ -58,16 +68,29 @@ export function eseguiIA({ cfg, prompt, cwd, sessione, extra, modello, adddir, t
       if (bloccato || !CHIEDE_LOGIN.test(t)) return;
       bloccato = /IneligibleOrProjectId/.test(t)
         ? `${cfg.nome}: l'account non ha la quota attiva (serve un progetto Google Cloud: vedi la GUIDA, voce "Gemini")`
-        : `${cfg.nome} chiede di fare il login: esci da KORTEX, lancia "${cfg.bin}" da solo e accedi`;
-      try { proc.kill('SIGTERM'); } catch { /* */ }
+        : /trust|\[y\/N\]|\(y\/n\)/i.test(t)
+          ? `${cfg.nome} chiede una conferma che qui non si può dare: lancia "${cfg.bin}" da solo in questa cartella e rispondi una volta`
+          : `${cfg.nome} chiede di fare il login: esci da KORTEX, lancia "${cfg.bin}" da solo e accedi`;
+      abbandona();
     };
 
     const timer = setTimeout(() => {
       errori += '\n[tempo scaduto]';
-      try { proc.kill('SIGTERM'); } catch { /* */ }
+      abbandona();
     }, (timeoutSecondi || 900) * 1000);
+    // Il guardiano del silenzio: una CLI che non scrive niente per troppo tempo è quasi sempre appesa
+    // (una domanda che nessuno vede, una rete bloccata). Meglio passare alla riserva che aspettare.
+    let ultimoSegno = Date.now();
+    const guardiano = setInterval(() => {
+      if (Date.now() - ultimoSegno > silenzioSecondi * 1000) {
+        errori += `\n[nessun segno di vita da ${silenzioSecondi}s: la considero bloccata]`;
+        clearInterval(guardiano);
+        abbandona();
+      }
+    }, 5000);
 
     proc.stdout.on('data', (d) => {
+      ultimoSegno = Date.now();
       const s = d.toString();
       if (cfg.parser !== 'claude-stream') {
         const pulito = s.replace(ANSI, '');
@@ -106,6 +129,7 @@ export function eseguiIA({ cfg, prompt, cwd, sessione, extra, modello, adddir, t
     });
 
     proc.stderr.on('data', (d) => {
+      ultimoSegno = Date.now();
       controllaBlocco(d.toString());
       errori += d.toString().replace(ANSI, '');
       if (errori.length > 20000) errori = errori.slice(-20000);
@@ -115,6 +139,7 @@ export function eseguiIA({ cfg, prompt, cwd, sessione, extra, modello, adddir, t
       if (chiuso) return;
       chiuso = true;
       clearTimeout(timer);
+      clearInterval(guardiano);
       attivi.delete(proc);
       risolvi(risultato);
     };

@@ -41,7 +41,8 @@ export async function eseguiRuolo(ruolo, prompt, ctx, opz = {}) {
       extra: config.profili?.[profilo]?.[id] || [],
       modello,
       adddir: fs.existsSync(DIR_DB) ? ['--add-dir', DIR_DB] : [],
-      timeoutSecondi: config.timeoutSecondi,
+      timeoutSecondi: ruolo === 'esecutore' ? config.timeoutSecondi : Math.min(config.timeoutSecondi || 600, 600),
+      silenzioSecondi: config.silenzioSecondi || 300,
       onTesto: (t) => { ctx.tel?.evento(); if (opz.mostra !== false) ui.out(t); },
       onLog: (m) => { ctx.tel?.evento(); if (/^\s*▸/.test(m)) ctx.tel?.strumento(id, m.replace(/^\s*▸\s*\w+\s*→\s*/, '').trim()); ui.log(m, { ia: id, ruolo }); },
     });

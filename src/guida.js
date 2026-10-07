@@ -98,6 +98,7 @@ Ogni IA ha un cervello col suo colore: Claude arancio, Codex verde, Gemini blu, 
 - ESC: torna a LAVORO (nel selettore file: lo chiude)
 - CTRL+O: screenshot da allegare
 - CTRL+F: filtro del registro
+- CTRL+K: mentre la squadra lavora, salta l'IA che sta lavorando adesso e passa alla riserva (utile se la vedi ferma da troppo)
 - CTRL+C: ferma il comando della shell; se non ce n'è nessuno, esce
 
 # I COMANDI
@@ -164,6 +165,8 @@ Ogni progetto ha una cartella nascosta .kortex con il diario (STATO.md), le conv
 - Gemini dà errore di account (IneligibleOrProjectId): il tuo account Google non ha la quota gratuita attiva da sola e vuole un progetto Google Cloud. Si sistema una volta: vai su console.cloud.google.com, crea un progetto (nome a piacere) e copia il suo ID; nel menu APIs cerca "Gemini for Google Cloud" e attivala; poi in un terminale normale scrivi: echo 'export GOOGLE_CLOUD_PROJECT=il-tuo-id' >> ~/.bashrc  e riapri il terminale. Rilancia gemini da solo per verificare.
 - Una correzione non parte: controlla il parametro Correzioni massime nella plancia.
 - L'interfaccia è lenta: metti Animazioni su LEGGERA o SPENTA.
+- La barra di avanzamento è ferma da molto: la riga in fondo dice quale IA sta lavorando e da quanto. Se è troppo, CTRL+K la salta. KORTEX comunque considera bloccata un'IA che non scrive niente per 5 minuti (Silenzio massimo, nella plancia) e passa da solo alla riserva; direttore, pianificatore e revisore hanno al massimo 10 minuti.
+- Una CLI chiede una conferma (per esempio Gemini: "ti fidi di questa cartella?"): dentro KORTEX non si può rispondere. Lancia quella CLI da sola nella cartella del progetto, rispondi una volta, e da lì in poi non lo chiede più.
 - Per aggiornare KORTEX: esci e scrivi kortex --aggiorna.
 - Per capire cosa non va con una IA: esci e scrivi kortex --prova. Fa una domanda vera a ognuna e ti dice il rimedio.
 - Nella plancia, la colonna "ultime 5h" conta le chiamate a ogni IA nella finestra in cui gli abbonamenti misurano l'uso: se si avvicina al limite diventa gialla, al limite rossa.

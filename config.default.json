@@ -19,6 +19,7 @@
   "tema": "neon",
   "memoriaAutomatica": true,
   "timeoutSecondi": 900,
+  "silenzioSecondi": 300,
   "maxCorrezioni": 1,
   "ruoli": {
     "direttore": [

@@ -32,6 +32,10 @@ export const PARAMETRI = [
     spiega: 'Dopo quanti secondi una chiamata viene interrotta e si passa alla riserva. Alzalo per lavori lunghi.',
   },
   {
+    chiave: 'silenzioSecondi', nome: 'Silenzio massimo', tipo: 'numero', min: 60, max: 900, passo: 60, unita: 's',
+    spiega: 'Se un\'IA non scrive niente per questo tempo, KORTEX la considera bloccata e passa alla riserva. Protegge dalle CLI rimaste appese a una domanda che nessuno vede. Direttore, pianificatore e revisore hanno comunque al massimo 10 minuti: solo l\'esecutore può lavorare a lungo.',
+  },
+  {
     chiave: 'memoriaRighe', nome: 'Memoria del direttore', tipo: 'numero', min: 10, max: 100, passo: 10, unita: ' righe',
     spiega: 'Quante righe del diario di progetto legge il direttore prima di decidere. Più memoria = più contesto, ma prompt più lunghi.',
   },
