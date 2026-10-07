@@ -456,6 +456,9 @@ function App({ config, disponibili, cwd: cwdIniziale, versione }) {
   }
 
   async function inviaIA(valore) {
+    try { await inviaIAvero(valore); } catch (e) { ui.current.log(`✖ errore interno: ${e.message}`, { tipo: 'errore' }); scrivi(`\n✖ errore interno: ${e.message}\n`); setOccupato(false); }
+  }
+  async function inviaIAvero(valore) {
     const t = valore.trim();
     setInputIA('');
     if (selettore) {
@@ -587,7 +590,11 @@ function App({ config, disponibili, cwd: cwdIniziale, versione }) {
     }, 0);
   };
 
+  // Un errore dentro la gestione di un tasto non deve mai chiudere KORTEX: finisce nel registro.
   useInput((ch, key) => {
+    try { gestisciTasto(ch, key); } catch (e) { ui.current.log(`✖ errore interno (tasto): ${e.message}`, { tipo: 'errore' }); ui.current.notifica('✖ errore interno: guarda il REGISTRO', 'errore'); }
+  });
+  function gestisciTasto(ch, key) {
     if (key.ctrl && 'tndfo'.includes(ch)) scartaLettera(ch);
     if (key.ctrl && ch === 'c') {
       if (pagina === 'lavoro' && fuoco === 'shell' && sessioni.current.interrompi(dest)) return;
@@ -608,13 +615,6 @@ function App({ config, disponibili, cwd: cwdIniziale, versione }) {
       if (key.downArrow) return setSelezionato((x) => (x + 1) % PARAMETRI.length);
       if (key.leftArrow || key.rightArrow) { cambia(config, PARAMETRI[selezionato], key.rightArrow ? 1 : -1); if (PARAMETRI[selezionato].chiave === 'tema') applicaTema(config, C); return salva('salvato'); }
       if (/^[1-5]$/.test(ch)) { const m = applicaMappatura(config, Number(ch) - 1); return salva(`mappatura ${m.nome} applicata`); }
-      return;
-    }
-    if (pagina === 'database') {
-      if (t.startsWith('/')) { setDbQuery(''); return comando(t); }
-      const d = datiDb();
-      const v = d.voci[dbSel];
-      if (v) { setInputIA(`@${v.id} `); setDbQuery(''); setPagina('lavoro'); setFuoco('ia'); scrivi(`\n📚 ${v.titolo}: scrivi cosa farne, l'IA la userà\n`); }
       return;
     }
     if (pagina === 'database') {
@@ -652,7 +652,7 @@ function App({ config, disponibili, cwd: cwdIniziale, versione }) {
     if (key.downArrow) return sposta(-1);
     if (key.pageUp) return sposta(pg);
     if (key.pageDown) return sposta(-pg);
-  });
+  }
 
   const ruoloAttivo = RUOLI.find(([id]) => ruoli[id].stato === 'lavoro');
   const etichetta = modo ? 'risponde' : ruoloAttivo ? ruoloAttivo[1] : 'al lavoro';
