@@ -27,7 +27,19 @@ export function caricaConfig() {
     return predefinita;
   }
   try {
-    return unisci(predefinita, JSON.parse(fs.readFileSync(FILE_CONFIG, 'utf8')));
+    const utente = JSON.parse(fs.readFileSync(FILE_CONFIG, 'utf8'));
+    const c = unisci(predefinita, utente);
+    // I comandi delle CLI e i profili cambiano con gli aggiornamenti di KORTEX: valgono quelli nuovi,
+    // a meno che l'utente non abbia segnato "personalizzato": true su quella IA.
+    for (const id of Object.keys(predefinita.ia)) {
+      if (!utente.ia?.[id]?.personalizzato) {
+        c.ia[id] = { ...c.ia[id], args: predefinita.ia[id].args, resume: predefinita.ia[id].resume, parser: predefinita.ia[id].parser };
+      }
+    }
+    if (!utente.profiliPersonalizzati) c.profili = predefinita.profili;
+    for (const r of Object.keys(predefinita.ruoli)) if (!c.ruoli[r]) c.ruoli[r] = predefinita.ruoli[r];
+    c.versioneConfig = predefinita.versioneConfig;
+    return c;
   } catch (e) {
     console.error(`Attenzione: ${FILE_CONFIG} non è JSON valido (${e.message}). Uso i valori predefiniti.`);
     return predefinita;

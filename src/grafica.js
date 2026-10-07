@@ -12,7 +12,7 @@ export const C = {
 // Ogni IA ha il suo colore, uguale in tutto il programma.
 export const COLORE_IA = { claude: '#FF8A3D', codex: '#3DDC97', gemini: '#4D9FFF', ollama: '#C9C9D6' };
 export const SPIN = '⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏';
-export const PAGINE = [['lavoro', 'LAVORO'], ['progetti', 'PROGETTI'], ['controllo', 'CONTROLLO'], ['studio', 'STUDIO'], ['guida', 'GUIDA']];
+export const PAGINE = [['lavoro', 'LAVORO'], ['progetti', 'PROGETTI'], ['database', 'DATABASE'], ['controllo', 'CONTROLLO'], ['studio', 'STUDIO'], ['guida', 'GUIDA']];
 
 export const lim01 = (x) => Math.max(0, Math.min(1, x || 0));
 export const accorcia = (s, n) => (s.length <= n ? s : '…' + s.slice(-Math.max(1, n - 1)));

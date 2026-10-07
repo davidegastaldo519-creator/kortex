@@ -1,5 +1,7 @@
 import { eseguiIA } from './adapters.js';
+import fs from 'node:fs';
 import { diffProgetto } from './state.js';
+import { DIR_DB, bloccoConoscenze } from './database.js';
 
 // ---------- scelta dell'IA per un ruolo, con riserva automatica ----------
 
@@ -37,6 +39,7 @@ export async function eseguiRuolo(ruolo, prompt, ctx, opz = {}) {
       sessione: opz.riprendi ? stato.sessione(id, chiave) : null,
       extra: config.profili?.[profilo]?.[id] || [],
       modello,
+      adddir: fs.existsSync(DIR_DB) ? ['--add-dir', DIR_DB] : [],
       timeoutSecondi: config.timeoutSecondi,
       onTesto: (t) => { ctx.tel?.evento(); if (opz.mostra !== false) ui.out(t); },
       onLog: (m) => { ctx.tel?.evento(); if (/^\s*▸/.test(m)) ctx.tel?.strumento(id, m.replace(/^\s*▸\s*\w+\s*→\s*/, '').trim()); ui.log(m, { ia: id, ruolo }); },
@@ -60,9 +63,9 @@ export async function eseguiRuolo(ruolo, prompt, ctx, opz = {}) {
 // ---------- prompt dei ruoli ----------
 
 const bloccoAllegati = (ctx) =>
-  ctx.allegati?.length
+  (ctx.allegati?.length
     ? `\nFILE ALLEGATI DALL'UTENTE (dentro la cartella del progetto: leggili o guardali se servono al compito):\n${ctx.allegati.map((a) => '- ' + a).join('\n')}\n`
-    : '';
+    : '') + bloccoConoscenze(ctx.conoscenze);
 
 function esecutoriDisponibili(ctx) {
   return candidati('esecutore', ctx)
@@ -308,6 +311,7 @@ export async function chatDiretta({ id, messaggio, ctx, storia }) {
     sessione,
     extra: config.profili?.[config.autonomia]?.[id] || [],
     modello,
+    adddir: fs.existsSync(DIR_DB) ? ['--add-dir', DIR_DB] : [],
     timeoutSecondi: config.timeoutSecondi,
     onTesto: (t) => { ctx.tel?.evento(); ui.out(t); },
     onLog: (m) => { ctx.tel?.evento(); ui.log(m, { ia: id, ruolo: 'chat' }); },
@@ -321,4 +325,23 @@ export async function chatDiretta({ id, messaggio, ctx, storia }) {
     ui.log(`✖ ${cfg.nome}: ${r.errore}${r.limitato ? ' — limite raggiunto: scegli un\'altra IA con /chat' : ''}`, { ia: id, ruolo: 'chat', tipo: 'errore' });
   }
   return r;
+}
+
+
+// ---------- il catalogatore: un'IA scrive la scheda di un file del database ----------
+export async function catalogaCon(ctx, { nome, estratto, percorso }) {
+  const prompt = `Sei il CATALOGATORE di un database personale. Devi scrivere la scheda di questo file.
+Nome del file: ${nome}
+Percorso: ${percorso}
+Inizio del contenuto:
+${estratto || '(nessun testo leggibile)'}
+
+Le categorie possibili sono: manuali (guide, istruzioni, documentazione), codice (script, sorgenti, configurazioni), documenti (testi, pagine web, PDF), immagini, note (appunti brevi), archivio (tutto il resto).
+Rispondi SOLO con JSON valido, senza testo prima o dopo:
+{"categoria":"manuali","titolo":"titolo breve e chiaro in italiano","descrizione":"una frase: cosa contiene e a cosa serve","tag":["parola1","parola2","parola3"]}`;
+  const r = await eseguiRuolo('catalogatore', prompt, ctx, { modalita: 'lettura', mostra: false });
+  if (!r.ok) return null;
+  const m = (r.testo || '').match(/\{[\s\S]*\}/);
+  if (!m) return null;
+  try { return JSON.parse(m[0]); } catch { return null; }
 }

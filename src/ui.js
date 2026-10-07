@@ -5,7 +5,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
-import { eseguiRichiesta, chatDiretta } from './director.js';
+import { eseguiRichiesta, chatDiretta, catalogaCon } from './director.js';
+import * as db from './database.js';
 import { apriStato, righeFile } from './state.js';
 import { fermaTutti } from './adapters.js';
 import { FILE_CONFIG } from './config.js';
@@ -14,7 +15,7 @@ import { PARAMETRI, cambia, applicaMappatura, salvaConfig } from './parametri.js
 import { elencoDestinazioni, Sessioni } from './terminale.js';
 import { html, C, PAGINE, Intestazione } from './grafica.js';
 import { elencoProgetti, creaProgetto, importaProgetto, registraProgetto, toccaProgetto, progettoDi, elencoChat, creaChat, salvaChat, caricaChat, riassuntoChat, istantanea, elencoIstantanee, ripristina } from './progetti.js';
-import { RUOLI, FILTRI, SCHEDE, BarraAllegati, PaginaSelettore, PaginaLavoro, PaginaControllo, PaginaStudio, PaginaGuida, PaginaProgetti } from './pagine.js';
+import { RUOLI, FILTRI, SCHEDE, BarraAllegati, PaginaSelettore, PaginaLavoro, PaginaControllo, PaginaStudio, PaginaGuida, PaginaProgetti, PaginaDatabase } from './pagine.js';
 
 const CONSIGLI = [
   'Ctrl+T sposta il cursore tra il terminale ($) e le IA (›). Ctrl+N cambia la scheda a destra.',
@@ -61,7 +62,7 @@ function indiceFile(cwd) {
   };
   visita(cwd, 3);
   const casa = os.homedir();
-  for (const d of ['Downloads', 'Scaricati', 'Pictures', 'Immagini', 'Pictures/Screenshots', 'Immagini/Screenshot', 'Desktop', 'Scrivania', 'Documents', 'Documenti']) visita(path.join(casa, d), 1);
+  for (const d of ['Downloads', 'Scaricati', 'Pictures', 'Immagini', 'Pictures/Screenshots', 'Immagini/Screenshot', 'Desktop', 'Scrivania', 'Documents', 'Documenti', 'kortex-database']) visita(path.join(casa, d), 2);
   return [...new Set(out)];
 }
 
@@ -76,6 +77,10 @@ function App({ config, disponibili, cwd: cwdIniziale, versione }) {
   const [selezione, setSelezione] = useState({ progetto: 0, chat: 0 });
   const [colonna, setColonna] = useState('progetti');
   const [versioneProgetti, setVersioneProgetti] = useState(0);
+  const [dbCategoria, setDbCategoria] = useState('tutte');
+  const [dbQuery, setDbQuery] = useState('');
+  const [dbSel, setDbSel] = useState(0);
+  const [dbVersione, setDbVersione] = useState(0);
   const [scheda, setScheda] = useState('agenti');
   const [fuoco, setFuoco] = useState('ia');
   const [righe, setRighe] = useState(['']);
@@ -105,6 +110,7 @@ function App({ config, disponibili, cwd: cwdIniziale, versione }) {
   const tel = useRef(null);
   const sessioni = useRef(null);
   const cacheProgetti = useRef({ chiave: null, progetti: [], chat: [], istantanee: [] });
+  const cacheDb = useRef({ chiave: null });
   if (!stato.current) stato.current = apriStato(cwd);
   if (!tel.current) tel.current = new Telemetria(Object.keys(disponibili));
   if (!sessioni.current) sessioni.current = new Sessioni(cwd);
@@ -199,6 +205,40 @@ function App({ config, disponibili, cwd: cwdIniziale, versione }) {
     return cacheProgetti.current;
   };
 
+  const contestoBase = () => ({ config, disponibili, cwd, stato: stato.current, ui: ui.current, tel: tel.current });
+  const catalogatore = ({ nome, estratto: e, percorso }) => catalogaCon(contestoBase(), { nome, estratto: e, percorso });
+  const catalogatorePronto = () => (config.ruoli.catalogatore || []).some((id) => disponibili[id]?.ok && !disponibili[id]?.limitato);
+  const datiDb = () => {
+    const chiave = `${dbVersione}|${dbCategoria}|${dbQuery}`;
+    if (cacheDb.current.chiave !== chiave) {
+      const q = dbQuery.trim().toLowerCase();
+      const tutte = db.indice().filter((v) => (dbCategoria === 'tutte' || v.categoria === dbCategoria) && (!q || `${v.titolo} ${v.tag.join(' ')} ${v.descrizione} ${v.estratto}`.toLowerCase().includes(q)));
+      cacheDb.current = { chiave, voci: tutte, conteggi: db.conteggi(), github: db.statoGithub() };
+    }
+    return cacheDb.current;
+  };
+  const aggiungiAlDb = async (cosa, tipo = 'file') => {
+    scrivi(`\n📚 aggiungo al database: ${cosa}${catalogatorePronto() ? '  (il catalogatore scrive la scheda…)' : ''}\n`);
+    try {
+      const cat = catalogatorePronto() ? catalogatore : null;
+      const v = tipo === 'nota' ? await db.aggiungiNota(cosa, cat) : /^https?:\/\//i.test(cosa) ? await db.aggiungiUrl(cosa, cat) : await db.aggiungiFile(cosa, cat);
+      scrivi(`✔ ${v.titolo}  →  ${v.categoria}${v.tag.length ? '  #' + v.tag.join(' #') : ''}\n${v.descrizione ? '  ' + v.descrizione + '\n' : ''}`);
+      setDbVersione((x) => x + 1);
+      return v;
+    } catch (e) {
+      scrivi(`✖ non riesco ad aggiungerlo: ${e.message.split('\n')[0]}\n`);
+      return null;
+    }
+  };
+  const cambiaQueryDb = (valore) => {
+    if (valore.length - dbQuery.length >= 3) {
+      const trovati = percorsiIncollati(valore);
+      if (trovati.length) { for (const t of trovati) aggiungiAlDb(t.percorso); setDbQuery(''); return; }
+    }
+    setDbQuery(valore);
+    setDbSel(0);
+  };
+
   const salva = (msg) => { setMessaggio(salvaConfig(config) ? msg : 'impossibile salvare la configurazione'); ridisegna((x) => x + 1); };
 
   // ---------- allegati ----------
@@ -230,7 +270,7 @@ function App({ config, disponibili, cwd: cwdIniziale, versione }) {
     });
   };
   const cambiaInputIA = (valore) => {
-    if (!selettore && valore.length - inputIA.length >= 3) {
+    if (!selettore && !valore.startsWith('/') && valore.length - inputIA.length >= 3) {
       const trovati = percorsiIncollati(valore);
       if (trovati.length) {
         let resto = valore;
@@ -287,6 +327,24 @@ function App({ config, disponibili, cwd: cwdIniziale, versione }) {
           if (sotto === 'qui') { const v = registraProgetto({ nome: path.basename(cwd), percorso: cwd }); setProgetto(v); setVersioneProgetti((x) => x + 1); scrivi(`\n✔ questa cartella è ora il progetto "${v.nome}"\n`); return; }
         } catch (e) { scrivi(`\n✖ ${e.message}\n`); return; }
         scrivi('\n' + (elencoProgetti().map((q, i) => `  ${i + 1}. ${q.nome}  ${q.percorso}`).join('\n') || 'nessun progetto') + '\n/progetto nuovo nome · /progetto apri N · /progetto importa percorso · /progetto qui\n');
+        return;
+      }
+      case 'db': {
+        const sotto = resto[0];
+        const restoArg = resto.slice(1).join(' ');
+        try {
+          if (sotto === 'aggiungi' && restoArg) { aggiungiAlDb(restoArg.replace(/^~/, os.homedir())); return; }
+          if (sotto === 'nota' && restoArg) { aggiungiAlDb(restoArg, 'nota'); return; }
+          if (sotto === 'sposta' && resto[2]) { const v = db.sposta(resto[1], resto[2]); setDbVersione((x) => x + 1); scrivi(`\n✔ ${v.titolo} → ${v.categoria}\n`); return; }
+          if (sotto === 'tag' && resto[2]) { const v = db.aggiornaVoce(resto[1], { tag: resto.slice(2).join(' ').split(/[,\s]+/).filter(Boolean) }); setDbVersione((x) => x + 1); scrivi(`\n✔ tag di ${v.titolo}: ${v.tag.join(', ')}\n`); return; }
+          if (sotto === 'titolo' && resto[2]) { const v = db.aggiornaVoce(resto[1], { titolo: resto.slice(2).join(' ') }); setDbVersione((x) => x + 1); scrivi(`\n✔ titolo: ${v.titolo}\n`); return; }
+          if (sotto === 'togli' && resto[1]) { const v = db.togli(resto[1]); setDbVersione((x) => x + 1); scrivi(`\n✔ ${v.titolo} spostato nel cestino (archivio/.cestino)\n`); return; }
+          if (sotto === 'cerca' && restoArg) { const r = db.cerca(restoArg, 6); scrivi('\n' + (r.map((v) => `  ${v.id}  ${v.titolo} [${v.categoria}]`).join('\n') || 'niente di utile') + '\n'); return; }
+          if (sotto === 'github') { scrivi('\n📚 collego il database a GitHub (repository privato kortex-database)…\n'); const u = db.collegaGithub(); setDbVersione((x) => x + 1); scrivi(`✔ collegato: ${u}\n`); return; }
+          if (sotto === 'sync') { scrivi(`\n✔ database sincronizzato: ${db.sincronizza()}\n`); return; }
+          if (sotto === 'scarica' && resto[1]) { scrivi(`\n✔ ${db.scaricaDaGithub(resto[1])}\n`); setDbVersione((x) => x + 1); return; }
+        } catch (e) { scrivi(`\n✖ ${e.message.split('\n')[0]}\n`); return; }
+        scrivi(`\n📚 Database: ${db.DIR_DB}\n  /db aggiungi percorso-o-url · /db nota testo · /db cerca parole\n  /db sposta ID categoria · /db tag ID a,b · /db titolo ID nuovo titolo · /db togli ID\n  /db github (copia privata) · /db sync · /db scarica utente-github (su una macchina nuova)\nNella richiesta: @titolo o @ID obbliga le IA a usare quella voce, @manuali tutta la categoria.\n`);
         return;
       }
       case 'ripristina': {
@@ -365,6 +423,13 @@ function App({ config, disponibili, cwd: cwdIniziale, versione }) {
       setSelettore(null);
       return;
     }
+    if (pagina === 'database') {
+      if (t.startsWith('/')) { setDbQuery(''); return comando(t); }
+      const d = datiDb();
+      const v = d.voci[dbSel];
+      if (v) { setInputIA(`@${v.id} `); setDbQuery(''); setPagina('lavoro'); setFuoco('ia'); scrivi(`\n📚 ${v.titolo}: scrivi cosa farne, l'IA la userà\n`); }
+      return;
+    }
     if (pagina === 'progetti') {
       const d = datiProgetti();
       if (!t) {
@@ -391,7 +456,9 @@ function App({ config, disponibili, cwd: cwdIniziale, versione }) {
     const daAllegare = allegati;
     setAllegati([]);
     scrivi(`\n› ${t}${daAllegare.length ? `   📎 ${daAllegare.length} allegat${daAllegare.length === 1 ? 'o' : 'i'}` : ''}\n`);
-    const ctx = { config, disponibili, cwd, stato: stato.current, ui: ui.current, tel: tel.current, allegati: daAllegare, chatId: c.id, chatPrecedente: riassuntoChat({ messaggi: c.messaggi.slice(0, -1) }) };
+    const conoscenze = [...new Map([...db.menzioni(t), ...db.cerca(t, 3)].map((v) => [v.id, v])).values()].slice(0, 5);
+    if (conoscenze.length) scrivi(`📚 dal database: ${conoscenze.map((v) => v.titolo).join(' · ')}\n`);
+    const ctx = { config, disponibili, cwd, stato: stato.current, ui: ui.current, tel: tel.current, allegati: daAllegare, chatId: c.id, chatPrecedente: riassuntoChat({ messaggi: c.messaggi.slice(0, -1) }), conoscenze };
     let risposta = '';
     try {
       if (modo) {
@@ -482,6 +549,21 @@ function App({ config, disponibili, cwd: cwdIniziale, versione }) {
       if (/^[1-5]$/.test(ch)) { const m = applicaMappatura(config, Number(ch) - 1); return salva(`mappatura ${m.nome} applicata`); }
       return;
     }
+    if (pagina === 'database') {
+      if (t.startsWith('/')) { setDbQuery(''); return comando(t); }
+      const d = datiDb();
+      const v = d.voci[dbSel];
+      if (v) { setInputIA(`@${v.id} `); setDbQuery(''); setPagina('lavoro'); setFuoco('ia'); scrivi(`\n📚 ${v.titolo}: scrivi cosa farne, l'IA la userà\n`); }
+      return;
+    }
+    if (pagina === 'database') {
+      const cats = ['tutte', ...db.CATEGORIE];
+      const n = datiDb().voci.length;
+      if (key.leftArrow || key.rightArrow) { setDbCategoria((c0) => cats[(cats.indexOf(c0) + (key.rightArrow ? 1 : -1) + cats.length) % cats.length]); setDbSel(0); return; }
+      if (key.upArrow) return setDbSel((x) => Math.max(0, x - 1));
+      if (key.downArrow) return setDbSel((x) => Math.min(Math.max(0, n - 1), x + 1));
+      return;
+    }
     if (pagina === 'progetti') {
       const d = datiProgetti();
       if (key.leftArrow) return setColonna('progetti');
@@ -519,6 +601,7 @@ function App({ config, disponibili, cwd: cwdIniziale, versione }) {
   let corpo;
   if (selettore) corpo = html`<${PaginaSelettore} h=${hCorpo} w=${c} elenco=${filtrati()} query=${selettore.query} sel=${selettore.sel} />`;
   else if (pagina === 'progetti') { const d = datiProgetti(); corpo = html`<${PaginaProgetti} h=${hCorpo} w=${c} progetti=${d.progetti} selezione=${selezione} colonna=${colonna} chat=${d.chat} istantanee=${d.istantanee} progettoAttuale=${cwd} chatAttuale=${chat?.id} />`; }
+  else if (pagina === 'database') { const d = datiDb(); corpo = html`<${PaginaDatabase} h=${hCorpo} w=${c} voci=${d.voci} categoria=${dbCategoria} query=${dbQuery} sel=${dbSel} conteggi=${d.conteggi} github=${d.github} pronto=${catalogatorePronto()} />`; }
   else if (pagina === 'controllo') corpo = html`<${PaginaControllo} h=${hCorpo} w=${c} config=${config} selezionato=${selezionato} tel=${tel.current} disponibili=${disponibili} tick=${tick} messaggio=${messaggio} />`;
   else if (pagina === 'studio') corpo = html`<${PaginaStudio} h=${hCorpo} w=${c} lavagna=${lavagna} appunti=${stato.current.appunti()} scorri=${scorri.studio} tick=${tick} massimi=${m} />`;
   else if (pagina === 'guida') corpo = html`<${PaginaGuida} h=${hCorpo} w=${c} scorri=${scorri.guida} massimi=${m} />`;
@@ -526,7 +609,7 @@ function App({ config, disponibili, cwd: cwdIniziale, versione }) {
 
   const inLavoro = pagina === 'lavoro' && !selettore;
   const fuocoShell = inLavoro && fuoco === 'shell';
-  const segnapostoIA = selettore ? 'scrivi una parte del nome del file…' : pagina === 'progetti' ? 'nome del nuovo progetto e INVIO · INVIO da solo apre quello selezionato · ←→ ↑↓ per muoverti' : modo ? `scrivi a ${disponibili[modo].nome}…` : 'scrivi cosa vuoi fare…   (trascina qui file e foto · /aiuto)';
+  const segnapostoIA = selettore ? 'scrivi una parte del nome del file…' : pagina === 'progetti' ? 'nome del nuovo progetto e INVIO · INVIO da solo apre quello selezionato · ←→ ↑↓ per muoverti' : pagina === 'database' ? 'scrivi per cercare · INVIO usa la voce scelta · trascina un file per aggiungerlo · /db per i comandi' : modo ? `scrivi a ${disponibili[modo].nome}…` : 'scrivi cosa vuoi fare…   (trascina qui file e foto · /aiuto)';
   const segnapostoShell = shellInCorso ? 'comando in corso… (Ctrl+C per fermarlo)' : `comando su ${dest.nome}…   (↑↓ precedenti · Ctrl+D cambia macchina)`;
   const bloccato = occupato && !selettore;
 
@@ -549,7 +632,7 @@ function App({ config, disponibili, cwd: cwdIniziale, versione }) {
           ? html`<${Text} color=${C.grigio}>le IA stanno lavorando…  (Ctrl+T per usare il terminale intanto, TAB per le altre pagine)<//>`
           : fuocoShell
             ? html`<${Text} color=${C.grigio} wrap="truncate-end">${inputIA || 'Ctrl+T per scrivere alle IA'}<//>`
-            : html`<${TextInput} value=${selettore ? selettore.query : inputIA} onChange=${selettore ? (q) => setSelettore((s) => ({ ...s, query: q, sel: 0 })) : cambiaInputIA} onSubmit=${inviaIA} placeholder=${segnapostoIA} />`}
+            : html`<${TextInput} value=${selettore ? selettore.query : pagina === 'database' ? dbQuery : inputIA} onChange=${selettore ? (q) => setSelettore((s) => ({ ...s, query: q, sel: 0 })) : pagina === 'database' ? cambiaQueryDb : cambiaInputIA} onSubmit=${inviaIA} placeholder=${segnapostoIA} />`}
       <//>
     <//>`}
     <${Box} height=${1} paddingX=${1}>

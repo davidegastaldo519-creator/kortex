@@ -5,10 +5,11 @@ export const GUIDA = `
 KORTEX fa lavorare insieme più intelligenze artificiali sullo stesso progetto: Claude Code, Codex, Gemini e Ollama. Usa le CLI già installate e collegate ai tuoi abbonamenti, quindi niente chiavi API e niente costi a consumo.
 Tu scrivi cosa vuoi ottenere. Lui divide il lavoro, lo assegna all'IA più adatta, lo fa controllare da un'altra, e tiene un diario per ricordarsi tutto la volta dopo.
 
-# LE CINQUE PAGINE
+# LE SEI PAGINE
 Si cambia pagina con TAB (avanti) e SHIFT+TAB (indietro). ESC torna sempre a LAVORO.
 - LAVORO: a sinistra il terminale, a destra le schede della squadra. Due righe di comando in basso: $ per il terminale, › per le IA. CTRL+T sposta il cursore dall'una all'altra.
 - PROGETTI: i tuoi progetti, le chat di ognuno e i punti di ripristino.
+- DATABASE: la memoria di tutti i progetti: manuali, codice, documenti, immagini, note. Le IA la consultano da sole.
 - CONTROLLO: la plancia della macchina. Regoli ogni parametro, scegli una mappatura, guardi i grafici in tempo reale.
 - STUDIO: la lavagna. Ci trovi il ragionamento dell'ultima richiesta — piano, passi, verdetto — e i tuoi appunti.
 - GUIDA: questa pagina.
@@ -35,6 +36,18 @@ Ogni cartella in cui lavori diventa un progetto: KORTEX la registra alla prima r
 - a destra le chat del progetto scelto: FRECCIA DESTRA per passarci, ↑↓ scegli, INVIO riapre quella chat con tutta la sua storia, e la squadra continua da lì
 - scrivi un nome nella riga in basso e INVIO: crea un progetto nuovo in ~/kortex-progetti
 - /progetto importa /percorso registra una cartella che hai già; /progetto apri N apre il numero N; /chat nuova inizia una chat pulita nel progetto aperto
+
+# IL DATABASE
+È una cartella unica, ~/kortex-database, divisa in categorie: manuali, codice, documenti, immagini, note, archivio. Dentro ci metti tutto quello che vuoi che le IA sappiano: manuali di programmi, codice da riusare, documenti, pagine web, appunti.
+Come aggiungere:
+- trascina un file nella pagina DATABASE
+- /db aggiungi percorso, oppure /db aggiungi https://indirizzo (scarica la pagina)
+- /db nota testo dell'appunto
+Ogni cosa aggiunta viene catalogata da un'IA (il CATALOGATORE, di solito Gemini): sceglie la categoria, scrive titolo, descrizione e tag. Tu correggi quando serve: /db sposta ID categoria, /db tag ID parole, /db titolo ID nuovo titolo, /db togli ID (finisce in archivio/.cestino).
+Come lo usano le IA:
+- DA SOLE: a ogni richiesta KORTEX cerca nel database le voci che c'entrano (titolo, tag, descrizione, contenuto) e le passa alle IA con percorso ed estratto. Lo vedi nell'output: "dal database: …".
+- SU RICHIESTA: scrivi @blender o @ID nella richiesta per obbligarle a usare una voce precisa; @manuali per tutta una categoria. Nella pagina DATABASE, INVIO su una voce ti prepara la riga con il suo @.
+Copia su GitHub: /db github crea un repository privato kortex-database e lo carica; /db sync lo aggiorna; su una macchina nuova /db scarica tuo-utente lo riporta giù. Così hai la stessa memoria su PC, Lenovo e tablet.
 
 # I PUNTI DI RIPRISTINO
 Prima e dopo ogni richiesta KORTEX fotografa i file del progetto in un archivio nascosto (.kortex/istantanee.git), separato dal tuo git: la tua storia non viene toccata.
@@ -85,6 +98,7 @@ Si scrivono nella barra in basso, iniziano con la barra /.
 - /progetto: elenca; /progetto nuovo nome · /progetto apri N · /progetto importa percorso · /progetto qui
 - /chat nuova [titolo] · /chat apri N: le chat del progetto
 - /ripristina [ID]: punti di ripristino
+- /db: tutti i comandi del database
 - /pulisci: svuota l'output
 - /esci: esce
 

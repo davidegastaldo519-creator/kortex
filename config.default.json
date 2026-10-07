@@ -40,6 +40,12 @@
       "codex",
       "claude",
       "ollama"
+    ],
+    "catalogatore": [
+      "gemini",
+      "claude",
+      "codex",
+      "ollama"
     ]
   },
   "ia": {
@@ -53,6 +59,7 @@
         "stream-json",
         "--verbose",
         "{resume}",
+        "{adddir}",
         "{extra}"
       ],
       "resume": [
@@ -132,5 +139,6 @@
       ],
       "ollama": []
     }
-  }
+  },
+  "versioneConfig": 2
 }

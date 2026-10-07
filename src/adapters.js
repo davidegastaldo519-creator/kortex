@@ -20,6 +20,7 @@ function costruisciArgs(modello, variabili) {
   for (const t of modello) {
     if (t === '{extra}') out.push(...(variabili.extra || []));
     else if (t === '{resume}') out.push(...(variabili.resume || []));
+    else if (t === '{adddir}') out.push(...(variabili.adddir || []));
     else out.push(t.replace(/\{(\w+)\}/g, (_, k) => variabili[k] ?? ''));
   }
   return out.filter((a) => a !== '');
@@ -30,10 +31,10 @@ function descriviStrumento(input = {}) {
   return x ? `  ${String(x).slice(0, 70)}` : '';
 }
 
-export function eseguiIA({ cfg, prompt, cwd, sessione, extra, modello, timeoutSecondi, onTesto, onLog }) {
+export function eseguiIA({ cfg, prompt, cwd, sessione, extra, modello, adddir, timeoutSecondi, onTesto, onLog }) {
   return new Promise((risolvi) => {
     const resume = sessione && cfg.resume ? cfg.resume.map((x) => x.replace('{session}', sessione)) : [];
-    const args = costruisciArgs(cfg.args, { prompt, extra, resume, modello });
+    const args = costruisciArgs(cfg.args, { prompt, extra, resume, modello, adddir });
     const mostrati = args.map((a) => (a === prompt ? '«prompt»' : a)).join(' ');
     onLog?.(`▶ ${cfg.nome}: ${cfg.bin} ${mostrati}`.slice(0, 160));
 

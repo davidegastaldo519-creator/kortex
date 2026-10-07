@@ -365,3 +365,51 @@ export function PaginaProgetti({ h, w, progetti, selezione, colonna, chat, istan
     <//>
   <//>`;
 }
+
+// ---------- DATABASE: la memoria di tutti i progetti ----------
+
+import { CATEGORIE, percorsoAssoluto } from './database.js';
+const COLORE_CAT = { manuali: '#FFB84D', codice: '#3DDC97', documenti: '#4D9FFF', immagini: '#FF6EC7', note: '#FFE66D', archivio: '#9A9AB0' };
+
+export function PaginaDatabase({ h, w, voci, categoria, query, sel, conteggi, github, pronto }) {
+  const wSx = 24;
+  const wDx = Math.min(70, Math.floor(w * 0.38));
+  const quando = (iso) => (iso ? iso.slice(0, 10) : '');
+  const v = voci[sel];
+  const spazio = Math.max(2, h - 4);
+  const primo = Math.max(0, Math.min(voci.length - spazio, sel - Math.floor(spazio / 2)));
+  const totale = Object.values(conteggi).reduce((a, b) => a + b, 0);
+  return html`<${Box} height=${h}>
+    <${Pannello} titolo="CATEGORIE" nota="←→" width=${wSx} height=${h} flexShrink=${0}>
+      ${[['tutte', 'TUTTE', totale], ...CATEGORIE.map((c) => [c, c.toUpperCase(), conteggi[c] || 0])].map(([id, nome, n]) => html`<${Text} key=${id}><${Text} color=${id === categoria ? '#000000' : COLORE_CAT[id] || C.gesso} backgroundColor=${id === categoria ? COLORE_CAT[id] || C.ciano : undefined} bold=${id === categoria}> ${nome.padEnd(10)}<//><${Text} color=${C.grigio}> ${String(n).padStart(4)}<//><//>`)}
+      <${Text}> <//>
+      <${Text} color=${C.grigio}>GitHub<//>
+      <${Text} color=${github ? C.verde : C.grigio} wrap="truncate-end">${github ? '● collegato' : '○ no: /db github'}<//>
+      <${Text}> <//>
+      <${Text} color=${C.grigio} wrap="truncate-end">${pronto ? 'catalogatore pronto' : 'catalogatore: nessuna IA'}<//>
+    <//>
+    <${Pannello} titolo=${categoria === 'tutte' ? 'TUTTE LE VOCI' : categoria.toUpperCase()} nota=${`${voci.length}${query ? ` · cerco "${query}"` : ''} · ↑↓ scegli · scrivi per cercare · trascina un file per aggiungerlo`} flexGrow=${1} height=${h}>
+      ${voci.length === 0 ? html`<${Text} color=${C.grigio}>${query ? 'niente corrisponde' : 'vuoto: trascina qui un file, oppure /db nota testo, /db aggiungi percorso-o-url'}<//>` : null}
+      ${voci.slice(primo, primo + spazio).map((x, k) => {
+        const i = primo + k;
+        const s = i === sel;
+        return html`<${Text} key=${x.id} wrap="truncate-end"><${Text} color=${s ? C.rosa : C.grigio}>${s ? '▶ ' : '  '}<//><${Text} color=${COLORE_CAT[x.categoria]}>■ <//><${Text} color=${s ? '#FFFFFF' : C.gesso} bold=${s}>${x.titolo}<//><${Text} color=${C.grigio}>   ${x.tag.slice(0, 4).map((t) => '#' + t).join(' ')}  ${quando(x.aggiunto)}<//><//>`;
+      })}
+    <//>
+    <${Pannello} titolo="SCHEDA" nota=${v ? `@${v.titolo.split(' ')[0].toLowerCase()} nella richiesta la usa` : ''} colore=${C.ciano} width=${wDx} height=${h} flexShrink=${0}>
+      ${!v ? html`<${Text} color=${C.grigio}>scegli una voce<//>` : html`<${Box} flexDirection="column">
+        <${Text} color=${COLORE_CAT[v.categoria]} bold wrap="truncate-end">${v.titolo}<//>
+        <${Text} color=${C.grigio} wrap="truncate-end">${v.categoria} · ${v.tag.map((t) => '#' + t).join(' ') || 'nessun tag'} · ${v.catalogatoDa === 'ia' ? 'scheda scritta dall\'IA' : 'scheda automatica'}<//>
+        <${Text} color=${C.gesso}>${v.descrizione || '—'}<//>
+        <${Text}> <//>
+        <${Text} color=${C.grigio} wrap="truncate-end">${percorsoAssoluto(v)}<//>
+        ${v.fonte ? html`<${Text} color=${C.grigio} wrap="truncate-end">fonte: ${v.fonte}<//>` : null}
+        <${Text}> <//>
+        <${Text} color=${C.ciano} bold>ESTRATTO<//>
+        ${avvolgi((v.estratto || '').split('\n').slice(0, 40), wDx - 4).slice(0, Math.max(2, h - 14)).map((r, i) => html`<${Text} key=${i} color=${C.gesso}>${r || ' '}<//>`)}
+        <${Text}> <//>
+        <${Text} color=${C.grigio} wrap="truncate-end">/db sposta ${v.id} categoria · /db tag ${v.id} a,b · /db togli ${v.id}<//>
+      <//>`}
+    <//>
+  <//>`;
+}
