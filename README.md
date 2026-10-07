@@ -31,6 +31,24 @@ Poi apri un terminale nuovo e controlla quali IA ha trovato:
 kortex --check
 ```
 
+E fai la prova vera: una domanda minuscola a ogni IA, con diagnosi e rimedio se qualcosa non va (login mancante, opzione cambiata, limite raggiunto):
+
+```
+kortex --prova
+```
+
+### Termux (telefono e tablet)
+
+```
+pkg install git nodejs ripgrep
+```
+
+```
+curl -fsSL https://raw.githubusercontent.com/davidegastaldo519-creator/kortex/main/get.sh | bash
+```
+
+Poi `termux-setup-storage` una volta, per vedere foto e download del telefono. Gemini CLI si installa con `npm install -g @google/gemini-cli`, Claude Code con `npm install -g @anthropic-ai/claude-code`. Codex su Termux non è disponibile. Lo schermo piccolo attiva da solo l'impaginazione compatta e il logo corto: meglio in orizzontale.
+
 ## La schermata iniziale
 
 All'avvio parte un'animazione di circa 10 secondi: una rete di collegamenti che porta dati al centro, un cervello a circuiti che si accende — diverso a ogni avvio — un teschio che si forma sopra il cervello, si crepa con una scossa e accende gli occhi, scintille dalla crepa, poi il nome KORTEX e la dedica al creatore in caratteri grandi. Si salta con un tasto qualsiasi, o del tutto con `kortex --no-anim`.
@@ -110,7 +128,7 @@ kortex
 | `/pulisci` | svuota il pannello OUTPUT |
 | `/esci` o Ctrl+C | esce |
 
-Da riga di comando: `kortex --check`, `kortex --no-anim`, `kortex --aggiorna`, `kortex --versione`.
+Da riga di comando: `kortex --check`, `kortex --prova`, `kortex --no-anim`, `kortex --aggiorna`, `kortex --versione`.
 
 **Il numero in dollari in alto non è una spesa.** Claude Code riporta quanto costerebbe il lavoro a prezzi API, anche quando usi l'abbonamento a prezzo fisso. Pagheresti davvero solo se sul computer fosse impostata una chiave API (`ANTHROPIC_API_KEY`).
 

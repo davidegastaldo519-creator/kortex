@@ -32,6 +32,7 @@ export async function avvia(argv) {
 Uso:
   kortex              apre l'interfaccia nella cartella corrente
   kortex --check      mostra quali IA sono installate su questa macchina
+  kortex --prova      fa una domanda vera a ogni IA e dice cosa non va
   kortex --no-anim    salta il logo animato
   kortex --aggiorna   scarica l'ultima versione da GitHub
   kortex --versione   versione
@@ -42,6 +43,15 @@ Configurazione: ${FILE_CONFIG}`);
 
   // Il rilevamento delle IA parte subito, in parallelo al logo: nessun tempo perso.
   const rilevamento = rileva(config);
+
+  if (argv.includes('--prova')) {
+    const d = await rilevamento;
+    const { provaTutte } = await import('./prova.js');
+    console.log(`\n${config.brand.nome} — prova vera delle IA\n`);
+    await provaTutte(config, d, process.cwd(), (t) => process.stdout.write(t + '\n'));
+    console.log('');
+    return;
+  }
 
   if (argv.includes('--check')) {
     const d = await rilevamento;

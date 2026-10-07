@@ -62,7 +62,7 @@ function indiceFile(cwd) {
   };
   visita(cwd, 3);
   const casa = os.homedir();
-  for (const d of ['Downloads', 'Scaricati', 'Pictures', 'Immagini', 'Pictures/Screenshots', 'Immagini/Screenshot', 'Desktop', 'Scrivania', 'Documents', 'Documenti', 'kortex-database']) visita(path.join(casa, d), 2);
+  for (const d of ['Downloads', 'Scaricati', 'Pictures', 'Immagini', 'Pictures/Screenshots', 'Immagini/Screenshot', 'Desktop', 'Scrivania', 'Documents', 'Documenti', 'kortex-database', 'storage/shared/Download', 'storage/shared/DCIM', 'storage/shared/Pictures', 'storage/shared/Documents']) visita(path.join(casa, d), 2);
   return [...new Set(out)];
 }
 
@@ -258,7 +258,7 @@ function App({ config, disponibili, cwd: cwdIniziale, versione }) {
     const pezzi = [];
     let p;
     try { p = spawn('flameshot', ['gui', '--raw'], { stdio: ['ignore', 'pipe', 'ignore'] }); } catch { p = null; }
-    if (!p) return scrivi('\n✖ Flameshot non trovato: installalo con  sudo apt install -y flameshot\n');
+    if (!p) return scrivi(process.env.TERMUX_VERSION ? '\n· su Termux lo screenshot si fa dal telefono: poi trascina o /allega il file da storage/shared/Pictures\n' : '\n✖ Flameshot non trovato: installalo con  sudo apt install -y flameshot\n');
     p.on('error', () => scrivi('\n✖ Flameshot non trovato: installalo con  sudo apt install -y flameshot\n'));
     p.stdout.on('data', (d) => pezzi.push(d));
     p.on('close', () => {

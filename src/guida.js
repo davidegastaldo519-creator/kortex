@@ -142,6 +142,8 @@ Ogni progetto ha una cartella nascosta .kortex con il diario (STATO.md), le conv
 - Una correzione non parte: controlla il parametro Correzioni massime nella plancia.
 - L'interfaccia è lenta: metti Animazioni su LEGGERA o SPENTA.
 - Per aggiornare KORTEX: esci e scrivi kortex --aggiorna.
+- Per capire cosa non va con una IA: esci e scrivi kortex --prova. Fa una domanda vera a ognuna e ti dice il rimedio.
+- Nella plancia, la colonna "ultime 5h" conta le chiamate a ogni IA nella finestra in cui gli abbonamenti misurano l'uso: se si avvicina al limite diventa gialla, al limite rossa.
 
 # IDEATO E FORGIATO DA GASTY
 Architetto di intelligenze, costruttore di mondi.

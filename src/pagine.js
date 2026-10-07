@@ -216,7 +216,7 @@ export function PaginaControllo({ h, w, config, selezionato, tel, disponibili, t
   const primo = Math.max(0, Math.min(PARAMETRI.length - visibili, selezionato - Math.floor(visibili / 2)));
 
   const hConn = nIA * 2 + 3;
-  const hNum = compatto ? 0 : nIA + 5;
+  const hNum = compatto ? 0 : nIA + 6;
   const hTel = Math.max(5, h - hConn - hNum);
   const larGrafico = Math.max(10, Math.min(60, wDx - 6));
   const grafici = [
@@ -269,11 +269,13 @@ export function PaginaControllo({ h, w, config, selezionato, tel, disponibili, t
         ${Object.values(disponibili).map((d) => html`<${Cavo} key=${d.id} d=${d} stato=${tel.ia[d.id]} tick=${tick} larghezza=${Math.max(4, wDx - 22)} />`)}
       <//>
       ${!compatto && html`<${Pannello} titolo="SQUADRA IN NUMERI" height=${hNum} flexShrink=${0}>
-        <${Text} color=${C.grigio}>${'IA'.padEnd(9)}${'chiamate'.padStart(9)}${'riuscite'.padStart(10)}${'fallite'.padStart(9)}${'media'.padStart(8)}${'valore'.padStart(9)}<//>
+        <${Text} color=${C.grigio}>${'IA'.padEnd(9)}${'chiamate'.padStart(9)}${'riuscite'.padStart(10)}${'fallite'.padStart(9)}${'media'.padStart(8)}${'valore'.padStart(9)}${'ultime 5h'.padStart(11)}<//>
         ${Object.values(disponibili).map((d) => {
           const s = tel.ia[d.id];
-          return html`<${Text} key=${d.id} color=${d.ok ? C.gesso : C.scuro}><${Text} color=${d.ok ? COLORE_IA[d.id] : C.scuro}>${d.nome.padEnd(9)}<//>${String(s.chiamate).padStart(9)}${String(s.ok).padStart(10)}${String(s.errori).padStart(9)}${media(s).padStart(8)}${(s.valore ? '$' + s.valore.toFixed(2) : '—').padStart(9)}<//>`;
+          const cinqueOre = tel.chiamate.filter((x) => x.ia === d.id && x.inizio > Date.now() - 5 * 3600 * 1000).length;
+          return html`<${Text} key=${d.id} color=${d.ok ? C.gesso : C.scuro}><${Text} color=${d.ok ? COLORE_IA[d.id] : C.scuro}>${d.nome.padEnd(9)}<//>${String(s.chiamate).padStart(9)}${String(s.ok).padStart(10)}${String(s.errori).padStart(9)}${media(s).padStart(8)}${(s.valore ? '$' + s.valore.toFixed(2) : '—').padStart(9)}<${Text} color=${d.limitato ? C.rosso : cinqueOre > 40 ? C.giallo : C.gesso}>${String(cinqueOre).padStart(11)}<//><//>`;
         })}
+        <${Text} color=${C.grigio}>"ultime 5h" è la finestra in cui gli abbonamenti contano i messaggi: se un'IA va al limite, la colonna diventa rossa.<//>
         <${Text} color=${C.grigio} wrap="truncate-end">Le modifiche si salvano da sole in ${accorcia(FILE_CONFIG, Math.max(20, wDx - 40))}<//>
       <//>`}
     <//>

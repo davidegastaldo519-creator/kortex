@@ -106,6 +106,15 @@ EOF
   fi
 fi
 
+if [ "$MACCHINA" = "Termux" ]; then
+  echo
+  echo "Su Termux:"
+  echo "  - per vedere i file del telefono (foto, download) dai il permesso una volta:  termux-setup-storage"
+  echo "  - Gemini CLI si installa con:  npm install -g @google/gemini-cli"
+  echo "  - Claude Code:  pkg install ripgrep && npm install -g @anthropic-ai/claude-code"
+  echo "  - lo schermo è piccolo: tieni il telefono in orizzontale, o usa un tablet"
+fi
+
 echo
 echo "Fatto. Prova:"
 echo "  kortex --check     (quali IA trova su questa macchina)"
