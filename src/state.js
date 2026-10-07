@@ -48,6 +48,26 @@ export function apriStato(cwd) {
       assicura();
       fs.appendFileSync(fileStato, testo.trimEnd() + '\n\n');
     },
+    // Gli allegati vengono copiati dentro il progetto: così ogni IA li può leggere.
+    allega(percorso) {
+      assicura();
+      const cartella = path.join(dir, 'allegati');
+      fs.mkdirSync(cartella, { recursive: true });
+      const base = path.basename(percorso);
+      let dest = path.join(cartella, base);
+      if (fs.existsSync(dest) && path.resolve(percorso) !== dest) {
+        const est = path.extname(base);
+        dest = path.join(cartella, `${path.basename(base, est)}-${Date.now() % 100000}${est}`);
+      }
+      if (path.resolve(percorso) !== dest) fs.copyFileSync(percorso, dest);
+      return path.relative(cwd, dest);
+    },
+    cartellaAllegati() {
+      assicura();
+      const cartella = path.join(dir, 'allegati');
+      fs.mkdirSync(cartella, { recursive: true });
+      return cartella;
+    },
     appunti() {
       try { return fs.readFileSync(path.join(dir, 'appunti.md'), 'utf8').trim().split('\n'); } catch { return []; }
     },

@@ -5,12 +5,30 @@ export const GUIDA = `
 KORTEX fa lavorare insieme più intelligenze artificiali sullo stesso progetto: Claude Code, Codex, Gemini e Ollama. Usa le CLI già installate e collegate ai tuoi abbonamenti, quindi niente chiavi API e niente costi a consumo.
 Tu scrivi cosa vuoi ottenere. Lui divide il lavoro, lo assegna all'IA più adatta, lo fa controllare da un'altra, e tiene un diario per ricordarsi tutto la volta dopo.
 
-# LE QUATTRO PAGINE
+# LE CINQUE PAGINE
 Si cambia pagina con TAB (avanti) e SHIFT+TAB (indietro). ESC torna sempre a LAVORO.
-- LAVORO: dove scrivi le richieste e guardi le IA lavorare. A destra la lista dei compiti con il loro stato.
+- LAVORO: dove scrivi le richieste e guardi le IA lavorare. A sinistra la squadra con i cervelli delle IA, a destra la lista dei compiti con il loro stato.
+- TERMINALE: in alto il registro completo di tutto quello che fanno le IA, filtrabile; in basso una shell vera per lanciare comandi senza uscire da KORTEX.
 - CONTROLLO: la plancia della macchina. Regoli ogni parametro, scegli una mappatura, guardi i grafici in tempo reale.
 - STUDIO: la lavagna. Ci trovi il ragionamento dell'ultima richiesta — piano, passi, verdetto — e i tuoi appunti.
 - GUIDA: questa pagina.
+
+# ALLEGARE FILE E FOTO
+Le IA possono leggere qualunque file o immagine che alleghi. Tre modi:
+- TRASCINA il file nella finestra del terminale: compare nella barra allegati sopra la riga di scrittura.
+- /allega apre un selettore: scrivi una parte del nome, ↑↓ per scegliere, INVIO per allegare. Cerca nel progetto, in Download, Immagini, Scrivania e Documenti. Puoi anche scrivere /allega seguito dal percorso.
+- CTRL+O fa uno screenshot con Flameshot: selezioni la zona e si allega da solo.
+Gli allegati vengono copiati nella cartella .kortex/allegati del progetto e partono con la richiesta successiva. /allegati li elenca, /togli 2 toglie il secondo, /togli tutti li toglie tutti.
+
+# IL TERMINALE
+- REGISTRO: ogni evento ha l'ora, l'IA col suo colore, il ruolo, un simbolo e il testo. ▶ avvio, ▸ strumento usato, ✔ finito, ✖ errore, ⟳ passaggio alla riserva.
+- CTRL+F cambia il filtro: tutti, una sola IA, solo gli errori.
+- SHELL: scrivi un comando e premi INVIO, come in un terminale normale. ↑↓ richiamano i comandi precedenti, cd cambia cartella, clear pulisce.
+- CTRL+C ferma il comando in corso. CTRL+L sposta lo scorrimento tra registro e shell.
+- Programmi interattivi come nano, top o ssh qui non funzionano: aprili in un terminale normale.
+
+# I CERVELLI DELLE IA
+Ogni IA ha un cervello col suo colore: Claude arancio, Codex verde, Gemini blu, Ollama grigio. Quando pensa si accende e ci corre sopra un'onda di luce; da ferma respira piano; rosso lampeggiante vuol dire che ha finito il limite dell'abbonamento; spento vuol dire non collegata.
 
 # I TASTI
 - TAB / SHIFT+TAB: pagina successiva / precedente
@@ -18,8 +36,10 @@ Si cambia pagina con TAB (avanti) e SHIFT+TAB (indietro). ESC torna sempre a LAV
 - PAG SU / PAG GIÙ: scorre di una pagina intera
 - FRECCIA SINISTRA / DESTRA: nella plancia, cambia il valore del parametro
 - 1 2 3 4 5: nella plancia, applica una mappatura
-- ESC: torna a LAVORO
-- CTRL+C: esce
+- ESC: torna a LAVORO (nel selettore file: lo chiude)
+- CTRL+O: screenshot da allegare
+- CTRL+F e CTRL+L: nella pagina TERMINALE, filtro del registro e fuoco
+- CTRL+C: ferma il comando della shell; se non ce n'è nessuno, esce
 
 # I COMANDI
 Si scrivono nella barra in basso, iniziano con la barra /.
@@ -31,6 +51,10 @@ Si scrivono nella barra in basso, iniziano con la barra /.
 - /ia: quali IA sono installate e attive
 - /ruoli: chi fa cosa, in ordine di riserva
 - /stato: il diario del progetto
+- /allega: selettore file da allegare (o /allega percorso)
+- /allegati: elenca gli allegati pronti
+- /togli N: toglie un allegato (/togli tutti per tutti)
+- /screenshot: come CTRL+O
 - /pulisci: svuota l'output
 - /esci: esce
 

@@ -37,16 +37,31 @@ All'avvio parte un'animazione di circa 10 secondi: una rete di collegamenti che 
 
 Si adatta allo schermo: a tutto schermo il teschio è in scala doppia (tripla sui monitor alti) con il testo a fianco; in una finestra normale è in scala singola con il testo sotto; sul telefono parte una versione corta. L'icona nel menu e Ctrl+Alt+K aprono il terminale **a schermo intero** (serve `wmctrl`: `sudo apt install -y wmctrl`).
 
-## Lo studio: quattro pagine
+## Lo studio: cinque pagine
 
 Si passa da una pagina all'altra con **TAB** (e SHIFT+TAB per tornare indietro). ESC riporta sempre a LAVORO.
 
 - **LAVORO** — scrivi le richieste e guardi la squadra lavorare. A sinistra chi sta facendo cosa, al centro l'output (scorrevole con le frecce e PAG SU/GIÙ), a destra i compiti spuntati man mano e i file cambiati.
+- **TERMINALE** — in alto il **registro** di tutto quello che fanno le IA: ora, IA col suo colore, ruolo, simbolo (▶ avvio, ▸ strumento, ✔ finito, ✖ errore, ⟳ riserva). Ctrl+F filtra per IA o solo errori. In basso una **shell vera**: comandi del sistema senza uscire da KORTEX, con cronologia (↑↓), `cd`, e Ctrl+C per fermare il comando.
 - **CONTROLLO** — la plancia della macchina. Ogni parametro ha il suo cursore (↑↓ per scegliere, ←→ per regolare) e una spiegazione. Cinque **mappature** pronte in scala crescente (tasti 1-5): LAMPO, AGILE, STANDARD, ACCURATO, PROFONDO. Grafici in tempo reale di CPU, RAM e *pensieri al secondo*, i cavi animati verso ogni IA e la tabella con chiamate, riuscite, fallite e tempi. Le modifiche si salvano da sole.
 - **STUDIO** — la lavagna: ci trovi scritto il ragionamento dell'ultima richiesta (piano del direttore, passi del pianificatore, verdetti del revisore) e i tuoi appunti, che scrivi con `/nota testo` e restano nel progetto.
 - **GUIDA** — il manuale completo, scorrevole: tasti, comandi, mappature, parametri, problemi comuni.
 
-L'intestazione resta sempre in alto: il teschio in miniatura con gli occhi che pulsano, il nome in gradiente animato, la mappatura attiva, l'autonomia e lo stato della squadra.
+L'intestazione resta sempre in alto. A schermo intero è grande: teschio dettagliato con la crepa e gli occhi che pulsano (e ogni tanto sbattono), KORTEX in caratteri alti col gradiente che scorre, "by GASTY", e a destra modalità, mappatura, autonomia, stato e valore. In una finestra più piccola diventa compatta da sola.
+
+## Allegare file e foto
+
+Le IA leggono qualunque file o immagine che alleghi:
+
+- **Trascina** il file nella finestra del terminale: compare nella barra allegati sopra la riga di scrittura
+- **`/allega`** apre un selettore che cerca nel progetto, in Download, Immagini, Scrivania e Documenti: scrivi una parte del nome, ↑↓, INVIO
+- **Ctrl+O** fa uno screenshot con Flameshot e lo allega da solo
+
+Gli allegati vengono copiati in `.kortex/allegati` del progetto e partono con la richiesta successiva. `/allegati` li elenca, `/togli N` ne toglie uno.
+
+## I cervelli delle IA
+
+Ogni IA ha un cervello animato col suo colore — Claude arancio, Codex verde, Gemini blu, Ollama grigio — nella squadra e nella plancia. Quando pensa si accende con un'onda di luce, da ferma respira piano, rosso lampeggiante se ha finito il limite, spento se non è collegata.
 
 ## Due modi di lavorare
 
@@ -85,6 +100,9 @@ kortex
 | Comando | Cosa fa |
 |---|---|
 | `/chat X` | chat diretta con una sola IA |
+| `/allega [file]` | selettore file da allegare, o allega il file indicato |
+| `/allegati` · `/togli N` | elenca o toglie gli allegati |
+| `/screenshot` | come Ctrl+O |
 | `/mappa N` | applica la mappatura da 1 (LAMPO) a 5 (PROFONDO) |
 | `/nota testo` | scrive un appunto sulla lavagna dello STUDIO |
 | `/pagina N` | va alla pagina da 1 a 4 |

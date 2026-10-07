@@ -109,7 +109,7 @@ const META_TESCHIO = [
   '    ###########NN', '     ###########N', '      ###########', '       ##tTtTtTtT',
   '       ##tTtTtTtT', '        #########', '          #######',
 ];
-const TESCHIO = META_TESCHIO.map((m) => m.padEnd(17) + [...m.padEnd(17)].reverse().join(''));
+export const TESCHIO = META_TESCHIO.map((m) => m.padEnd(17) + [...m.padEnd(17)].reverse().join(''));
 const TW = 34;
 const TH = TESCHIO.length;
 const CREPE = [
