@@ -78,7 +78,7 @@ ${ctx.stato.memoria(ctx.config.memoriaRighe || 30) || '(progetto nuovo, nessuna 
 Esecutori disponibili e loro punti forti:
 ${esecutoriDisponibili(ctx) || '(nessuno)'}
 
-Richiesta dell'utente:
+${ctx.chatPrecedente ? `Conversazione precedente in questa chat (serve solo come contesto):\n${ctx.chatPrecedente}\n\n` : ''}Richiesta dell'utente:
 ${richiesta}
 ${bloccoAllegati(ctx)}
 Scomponi la richiesta in compiti concreti: il MINOR numero possibile, da 1 a ${ctx.config.maxCompiti || 5}. Se la richiesta è semplice, un solo compito.
@@ -286,7 +286,8 @@ export async function eseguiRichiesta({ richiesta, ctx }) {
 export async function chatDiretta({ id, messaggio, ctx, storia }) {
   const { config, disponibili, ui, stato, cwd } = ctx;
   const cfg = config.ia[id];
-  const sessione = cfg.resume ? stato.sessione(id, 'chat') : null;
+  const chiaveChat = ctx.chatId ? `chat:${ctx.chatId}` : 'chat';
+  const sessione = cfg.resume ? stato.sessione(id, chiaveChat) : null;
   let prompt = messaggio + bloccoAllegati(ctx);
   if (!cfg.resume && storia.length) {
     const passato = storia
@@ -313,7 +314,7 @@ export async function chatDiretta({ id, messaggio, ctx, storia }) {
   });
   chiudi(r);
   if (r.ok) {
-    if (r.sessione) stato.salvaSessione(id, 'chat', r.sessione);
+    if (r.sessione) stato.salvaSessione(id, chiaveChat, r.sessione);
     if (r.costo) ui.costo(r.costo);
   } else {
     if (r.limitato) disponibili[id].limitato = true;

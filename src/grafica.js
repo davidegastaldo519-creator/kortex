@@ -12,7 +12,7 @@ export const C = {
 // Ogni IA ha il suo colore, uguale in tutto il programma.
 export const COLORE_IA = { claude: '#FF8A3D', codex: '#3DDC97', gemini: '#4D9FFF', ollama: '#C9C9D6' };
 export const SPIN = '⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏';
-export const PAGINE = [['lavoro', 'LAVORO'], ['controllo', 'CONTROLLO'], ['studio', 'STUDIO'], ['guida', 'GUIDA']];
+export const PAGINE = [['lavoro', 'LAVORO'], ['progetti', 'PROGETTI'], ['controllo', 'CONTROLLO'], ['studio', 'STUDIO'], ['guida', 'GUIDA']];
 
 export const lim01 = (x) => Math.max(0, Math.min(1, x || 0));
 export const accorcia = (s, n) => (s.length <= n ? s : '…' + s.slice(-Math.max(1, n - 1)));
@@ -40,7 +40,7 @@ export function Gradiente({ testo, colori, fase = 0, bold = true, passo = 1 }) {
 
 export function Pannello({ titolo, nota, colore = C.viola, coloreTitolo = C.ciano, children, ...resto }) {
   return html`<${Box} flexDirection="column" borderStyle="round" borderColor=${colore} paddingX=${1} overflow="hidden" ...${resto}>
-    <${Box}><${Text} color=${coloreTitolo} bold>${titolo}<//>${nota ? html`<${Text} color=${C.grigio} wrap="truncate-end">  ${nota}<//>` : null}<//>
+    <${Text} wrap="truncate-end"><${Text} color=${coloreTitolo} bold>${titolo}<//>${nota ? html`<${Text} color=${C.grigio}>  ${nota}<//>` : null}<//>
     ${children}
   <//>`;
 }
@@ -133,8 +133,9 @@ function Linguette({ pagina, corte }) {
   return html`<${Box} flexShrink=${0} width=${testo.length}><${Text} wrap="truncate-end">${PAGINE.map(([id, nome], i) => html`<${Text} key=${id} color=${id === pagina ? '#000000' : C.grigio} backgroundColor=${id === pagina ? C.ciano : undefined} bold=${id === pagina}> ${i + 1}${corte && id !== pagina ? '' : ' ' + nome} <//>`)}<//><//>`;
 }
 
-function Stato({ config, modo, disponibili, occupato, etichetta, costo, tick }) {
+function Stato({ config, modo, disponibili, occupato, etichetta, costo, tick, progetto, chat }) {
   return html`<${Box} flexDirection="column">
+    <${Text} wrap="truncate-end"><${Text} color=${C.grigio}>progetto    <//><${Text} color=${C.gesso} bold>${progetto || '—'}<//><${Text} color=${C.grigio}>${chat ? '  ·  ' + chat : ''}<//><//>
     <${Text}><${Text} color=${C.grigio}>modalità    <//><${Text} color=${modo ? C.giallo : C.viola} bold>${modo ? '💬 chat con ' + disponibili[modo].nome : '⚙ squadra'}<//><//>
     <${Text}><${Text} color=${C.grigio}>mappatura   <//><${Text} color=${C.ciano} bold>${config.mappa || '—'}<//><//>
     <${Text}><${Text} color=${C.grigio}>autonomia   <//><${Text} color=${config.autonomia === 'totale' ? C.rosso : C.verde} bold>${config.autonomia}<//><//>

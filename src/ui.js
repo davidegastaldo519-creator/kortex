@@ -13,7 +13,8 @@ import { Telemetria } from './telemetria.js';
 import { PARAMETRI, cambia, applicaMappatura, salvaConfig } from './parametri.js';
 import { elencoDestinazioni, Sessioni } from './terminale.js';
 import { html, C, PAGINE, Intestazione } from './grafica.js';
-import { RUOLI, FILTRI, SCHEDE, BarraAllegati, PaginaSelettore, PaginaLavoro, PaginaControllo, PaginaStudio, PaginaGuida } from './pagine.js';
+import { elencoProgetti, creaProgetto, importaProgetto, registraProgetto, toccaProgetto, progettoDi, elencoChat, creaChat, salvaChat, caricaChat, riassuntoChat, istantanea, elencoIstantanee, ripristina } from './progetti.js';
+import { RUOLI, FILTRI, SCHEDE, BarraAllegati, PaginaSelettore, PaginaLavoro, PaginaControllo, PaginaStudio, PaginaGuida, PaginaProgetti } from './pagine.js';
 
 const CONSIGLI = [
   'Ctrl+T sposta il cursore tra il terminale ($) e le IA (›). Ctrl+N cambia la scheda a destra.',
@@ -64,11 +65,17 @@ function indiceFile(cwd) {
   return [...new Set(out)];
 }
 
-function App({ config, disponibili, cwd, versione }) {
+function App({ config, disponibili, cwd: cwdIniziale, versione }) {
   const { exit } = useApp();
   const { stdout } = useStdout();
   const [dim, setDim] = useState({ c: stdout.columns || 80, r: stdout.rows || 24 });
   const [pagina, setPagina] = useState('lavoro');
+  const [cwd, setCwd] = useState(cwdIniziale);
+  const [progetto, setProgetto] = useState(() => progettoDi(cwdIniziale));
+  const [chat, setChat] = useState(null);
+  const [selezione, setSelezione] = useState({ progetto: 0, chat: 0 });
+  const [colonna, setColonna] = useState('progetti');
+  const [versioneProgetti, setVersioneProgetti] = useState(0);
   const [scheda, setScheda] = useState('agenti');
   const [fuoco, setFuoco] = useState('ia');
   const [righe, setRighe] = useState(['']);
@@ -97,6 +104,7 @@ function App({ config, disponibili, cwd, versione }) {
   const stato = useRef(null);
   const tel = useRef(null);
   const sessioni = useRef(null);
+  const cacheProgetti = useRef({ chiave: null, progetti: [], chat: [], istantanee: [] });
   if (!stato.current) stato.current = apriStato(cwd);
   if (!tel.current) tel.current = new Telemetria(Object.keys(disponibili));
   if (!sessioni.current) sessioni.current = new Sessioni(cwd);
@@ -152,6 +160,44 @@ function App({ config, disponibili, cwd, versione }) {
       `IA collegate: ${attive.join(', ') || 'nessuna — scrivi /ia per capire perché'}\n` +
       `Scrivi cosa vuoi fare nella riga › e premi INVIO. Ctrl+T per passare al terminale $. TAB per le altre pagine.\n`);
   }, []);
+
+  const apriProgetto = (percorso) => {
+    sessioni.current.chiudiTutto();
+    stato.current = apriStato(percorso);
+    sessioni.current = new Sessioni(percorso);
+    setCwd(percorso);
+    setProgetto(progettoDi(percorso));
+    setChat(null);
+    setAllegati([]);
+    setLavagna({});
+    setCompiti([]);
+    setRuoli(ruoliIniziali());
+    setIDest(0);
+    toccaProgetto(percorso);
+    setVersioneProgetti((v) => v + 1);
+    setFile(righeFile(percorso));
+    const v = progettoDi(percorso);
+    scrivi(`\n▌ PROGETTO APERTO: ${v?.nome || path.basename(percorso)}   (${percorso})\n${v?.descrizione ? v.descrizione + '\n' : ''}Scrivi una richiesta per iniziare una chat nuova, oppure apri una chat esistente dalla pagina PROGETTI.\n`);
+  };
+  const apriChat = (c) => {
+    setChat(c);
+    storia.current = c.messaggi.map((m) => ({ chi: m.chi === 'utente' ? 'Utente' : 'KORTEX', testo: m.testo }));
+    setRighe(['']);
+    scrivi(`▌ CHAT: ${c.titolo}   (${c.messaggi.length} messaggi)\n`);
+    for (const m of c.messaggi) scrivi(m.chi === 'utente' ? `\n› ${m.testo}\n` : `${m.testo}\n`);
+    scrivi('\n▌ Continua da qui: la squadra ricorda questa conversazione.\n');
+    setPagina('lavoro');
+    setVersioneProgetti((v) => v + 1);
+  };
+  const datiProgetti = () => {
+    const progetti = elencoProgetti();
+    const sel = progetti[Math.min(selezione.progetto, Math.max(0, progetti.length - 1))];
+    const chiave = `${versioneProgetti}|${sel?.percorso}|${selezione.progetto}`;
+    if (cacheProgetti.current.chiave !== chiave) {
+      cacheProgetti.current = { chiave, progetti, chat: sel ? elencoChat(sel.percorso) : [], istantanee: sel ? elencoIstantanee(sel.percorso, 12) : [] };
+    }
+    return cacheProgetti.current;
+  };
 
   const salva = (msg) => { setMessaggio(salvaConfig(config) ? msg : 'impossibile salvare la configurazione'); ridisegna((x) => x + 1); };
 
@@ -226,6 +272,32 @@ function App({ config, disponibili, cwd, versione }) {
       case 'esci': case 'q': fermaTutti(); sessioni.current.chiudiTutto(); exit(); return;
       case 'pulisci': setRighe(['']); return;
       case 'pagina': { const p = PAGINE[Number(arg) - 1]; if (p) setPagina(p[0]); return; }
+      case 'progetto': {
+        const sotto = resto[0];
+        const restoArg = resto.slice(1).join(' ');
+        try {
+          if (sotto === 'nuovo' && restoArg) { const v = creaProgetto(restoArg); apriProgetto(v.percorso); return; }
+          if (sotto === 'importa' && restoArg) { const v = importaProgetto(restoArg); apriProgetto(v.percorso); return; }
+          if (sotto === 'apri' && restoArg) {
+            const l = elencoProgetti();
+            const v = l[Number(restoArg) - 1] || l.find((q) => q.nome.toLowerCase() === restoArg.toLowerCase());
+            if (v) apriProgetto(v.percorso); else scrivi(`\n✖ progetto non trovato: ${restoArg}\n`);
+            return;
+          }
+          if (sotto === 'qui') { const v = registraProgetto({ nome: path.basename(cwd), percorso: cwd }); setProgetto(v); setVersioneProgetti((x) => x + 1); scrivi(`\n✔ questa cartella è ora il progetto "${v.nome}"\n`); return; }
+        } catch (e) { scrivi(`\n✖ ${e.message}\n`); return; }
+        scrivi('\n' + (elencoProgetti().map((q, i) => `  ${i + 1}. ${q.nome}  ${q.percorso}`).join('\n') || 'nessun progetto') + '\n/progetto nuovo nome · /progetto apri N · /progetto importa percorso · /progetto qui\n');
+        return;
+      }
+      case 'ripristina': {
+        if (!arg) { scrivi('\n' + (elencoIstantanee(cwd, 15).map((i) => `  ${i.id}  ${i.data}  ${i.etichetta}`).join('\n') || 'nessun punto di ripristino') + '\nUso: /ripristina ID\n'); return; }
+        try {
+          const r = ripristina(cwd, arg);
+          scrivi(`\n✔ file riportati al punto ${arg}${r.rimossi ? ` (${r.rimossi} file creati dopo sono stati tolti)` : ''}. Per annullare: /ripristina ${r.sicurezza}\n`);
+          aggiornaFile(); setVersioneProgetti((x) => x + 1);
+        } catch (e) { scrivi(`\n✖ ripristino non riuscito: ${e.message.split('\n')[0]}\n`); }
+        return;
+      }
       case 'scheda': { const s = SCHEDE[Number(arg) - 1]; if (s) setScheda(s[0]); return; }
       case 'dest': {
         if (!arg) { scrivi('\n' + destinazioni.map((d, i) => `  ${i + 1}. ${d.nome}${d.host ? '  ' + d.host : ''}  (${d.tipo}${d.origine ? ', ' + d.origine : ''})`).join('\n') + '\n/dest N per scegliere · /dest aggiungi nome utente@host [porta] · /dest togli nome\n'); return; }
@@ -268,6 +340,8 @@ function App({ config, disponibili, cwd, versione }) {
       case 'stato': scrivi('\n' + (stato.current.memoria(25) || '(diario vuoto)') + '\n'); return;
       case 'config': scrivi(`\nConfigurazione: ${FILE_CONFIG}\n`); return;
       case 'chat': {
+        if (resto[0] === 'nuova') { const c = creaChat(cwd, resto.slice(1).join(' ') || 'Nuova chat'); apriChat(c); return; }
+        if (resto[0] === 'apri') { const l = elencoChat(cwd); const c = l[Number(resto[1]) - 1]; if (c) apriChat(c); else scrivi('\n✖ chat non trovata\n'); return; }
         const attive = Object.values(disponibili).filter((d) => d.ok && !d.limitato);
         if (!arg) { scrivi(`\nCon chi vuoi parlare? ${attive.map((d) => '/chat ' + d.id).join('   ')}\n`); return; }
         if (!disponibili[arg]?.ok) { scrivi(`\n✖ ${arg} non è disponibile. Attive: ${attive.map((d) => d.id).join(', ')}\n`); return; }
@@ -291,27 +365,54 @@ function App({ config, disponibili, cwd, versione }) {
       setSelettore(null);
       return;
     }
+    if (pagina === 'progetti') {
+      const d = datiProgetti();
+      if (!t) {
+        if (colonna === 'chat' && d.chat[selezione.chat]) { const q = d.progetti[selezione.progetto]; if (q && q.percorso !== cwd) apriProgetto(q.percorso); setTimeout(() => apriChat(caricaChat(q.percorso, d.chat[selezione.chat].id)), 0); }
+        else if (d.progetti[selezione.progetto]) { apriProgetto(d.progetti[selezione.progetto].percorso); setPagina('lavoro'); }
+        return;
+      }
+      if (t.startsWith('/')) return comando(t);
+      try { const v = creaProgetto(t); apriProgetto(v.percorso); setPagina('lavoro'); } catch (e) { scrivi(`\n✖ ${e.message}\n`); }
+      return;
+    }
     if (!t || occupato) return;
     if (t.startsWith('/')) return comando(t);
     setOccupato(true);
+    // ogni cartella in cui lavori diventa un progetto, con le sue chat
+    let prog = progetto;
+    if (!prog) { prog = registraProgetto({ nome: path.basename(cwd), percorso: cwd }); setProgetto(prog); }
+    let c = chat;
+    if (!c) { c = creaChat(cwd, t.slice(0, 60)); setChat(c); }
+    const prima = istantanea(cwd, `prima di: ${t.slice(0, 70)}`);
+    c.messaggi.push({ chi: 'utente', testo: t, ora: new Date().toISOString(), istantanea: prima, allegati });
+    salvaChat(cwd, c);
     setScorri((s) => ({ ...s, lavoro: 0 }));
     const daAllegare = allegati;
     setAllegati([]);
     scrivi(`\n› ${t}${daAllegare.length ? `   📎 ${daAllegare.length} allegat${daAllegare.length === 1 ? 'o' : 'i'}` : ''}\n`);
-    const ctx = { config, disponibili, cwd, stato: stato.current, ui: ui.current, tel: tel.current, allegati: daAllegare };
+    const ctx = { config, disponibili, cwd, stato: stato.current, ui: ui.current, tel: tel.current, allegati: daAllegare, chatId: c.id, chatPrecedente: riassuntoChat({ messaggi: c.messaggi.slice(0, -1) }) };
+    let risposta = '';
     try {
       if (modo) {
         const r = await chatDiretta({ id: modo, messaggio: t, ctx, storia: storia.current });
         storia.current.push({ chi: 'Utente', testo: t });
         if (r.ok) storia.current.push({ chi: disponibili[modo].nome, testo: r.testo });
+        risposta = r.ok ? r.testo : `✖ ${r.errore}`;
         scrivi('\n');
       } else {
         setRuoli(ruoliIniziali());
-        await eseguiRichiesta({ richiesta: t, ctx });
+        const esiti = await eseguiRichiesta({ richiesta: t, ctx });
+        risposta = (esiti || []).map((e, i) => `${e.esito === 'OK' ? '✔' : e.esito === 'FALLITO' ? '✖' : '⚠'} ${i + 1}. ${e.c.titolo} — ${e.esito}`).join('\n') || '(nessun esito)';
       }
     } catch (e) {
       ui.current.log('✖ ' + e.message, { tipo: 'errore' });
+      risposta = '✖ ' + e.message;
     }
+    const dopo = istantanea(cwd, `dopo: ${t.slice(0, 70)}`);
+    c.messaggi.push({ chi: 'kortex', testo: risposta, ora: new Date().toISOString(), istantanea: dopo });
+    salvaChat(cwd, c);
+    setVersioneProgetti((x) => x + 1);
     setOccupato(false);
     aggiornaFile();
   }
@@ -381,6 +482,14 @@ function App({ config, disponibili, cwd, versione }) {
       if (/^[1-5]$/.test(ch)) { const m = applicaMappatura(config, Number(ch) - 1); return salva(`mappatura ${m.nome} applicata`); }
       return;
     }
+    if (pagina === 'progetti') {
+      const d = datiProgetti();
+      if (key.leftArrow) return setColonna('progetti');
+      if (key.rightArrow) return setColonna('chat');
+      if (key.upArrow) return setSelezione((z) => (colonna === 'chat' ? { ...z, chat: Math.max(0, z.chat - 1) } : { progetto: Math.max(0, z.progetto - 1), chat: 0 }));
+      if (key.downArrow) return setSelezione((z) => (colonna === 'chat' ? { ...z, chat: Math.min(Math.max(0, d.chat.length - 1), z.chat + 1) } : { progetto: Math.min(Math.max(0, d.progetti.length - 1), z.progetto + 1), chat: 0 }));
+      return;
+    }
     const pg = Math.max(3, hCorpo - 6);
     if (pagina === 'lavoro') {
       if (key.ctrl && ch === 't') return setFuoco((f) => (f === 'shell' ? 'ia' : 'shell'));
@@ -409,6 +518,7 @@ function App({ config, disponibili, cwd, versione }) {
 
   let corpo;
   if (selettore) corpo = html`<${PaginaSelettore} h=${hCorpo} w=${c} elenco=${filtrati()} query=${selettore.query} sel=${selettore.sel} />`;
+  else if (pagina === 'progetti') { const d = datiProgetti(); corpo = html`<${PaginaProgetti} h=${hCorpo} w=${c} progetti=${d.progetti} selezione=${selezione} colonna=${colonna} chat=${d.chat} istantanee=${d.istantanee} progettoAttuale=${cwd} chatAttuale=${chat?.id} />`; }
   else if (pagina === 'controllo') corpo = html`<${PaginaControllo} h=${hCorpo} w=${c} config=${config} selezionato=${selezionato} tel=${tel.current} disponibili=${disponibili} tick=${tick} messaggio=${messaggio} />`;
   else if (pagina === 'studio') corpo = html`<${PaginaStudio} h=${hCorpo} w=${c} lavagna=${lavagna} appunti=${stato.current.appunti()} scorri=${scorri.studio} tick=${tick} massimi=${m} />`;
   else if (pagina === 'guida') corpo = html`<${PaginaGuida} h=${hCorpo} w=${c} scorri=${scorri.guida} massimi=${m} />`;
@@ -416,13 +526,13 @@ function App({ config, disponibili, cwd, versione }) {
 
   const inLavoro = pagina === 'lavoro' && !selettore;
   const fuocoShell = inLavoro && fuoco === 'shell';
-  const segnapostoIA = selettore ? 'scrivi una parte del nome del file…' : modo ? `scrivi a ${disponibili[modo].nome}…` : 'scrivi cosa vuoi fare…   (trascina qui file e foto · /aiuto)';
+  const segnapostoIA = selettore ? 'scrivi una parte del nome del file…' : pagina === 'progetti' ? 'nome del nuovo progetto e INVIO · INVIO da solo apre quello selezionato · ←→ ↑↓ per muoverti' : modo ? `scrivi a ${disponibili[modo].nome}…` : 'scrivi cosa vuoi fare…   (trascina qui file e foto · /aiuto)';
   const segnapostoShell = shellInCorso ? 'comando in corso… (Ctrl+C per fermarlo)' : `comando su ${dest.nome}…   (↑↓ precedenti · Ctrl+D cambia macchina)`;
   const bloccato = occupato && !selettore;
 
   return html`<${Box} flexDirection="column" width=${c} height=${H}>
     <${Box} height=${hTesta}>
-      <${Intestazione} config=${config} tick=${tick} pagina=${pagina} modo=${modo} disponibili=${disponibili} occupato=${occupato} etichetta=${etichetta} costo=${costo} larghezza=${c} grande=${grande} versione=${versione} />
+      <${Intestazione} config=${config} tick=${tick} pagina=${pagina} modo=${modo} disponibili=${disponibili} occupato=${occupato} etichetta=${etichetta} costo=${costo} larghezza=${c} grande=${grande} versione=${versione} progetto=${progetto?.nome || path.basename(cwd)} chat=${chat?.titolo} />
     <//>
     ${corpo}
     ${conAllegati && html`<${BarraAllegati} allegati=${allegati} larghezza=${c} />`}

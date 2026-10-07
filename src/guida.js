@@ -5,9 +5,10 @@ export const GUIDA = `
 KORTEX fa lavorare insieme più intelligenze artificiali sullo stesso progetto: Claude Code, Codex, Gemini e Ollama. Usa le CLI già installate e collegate ai tuoi abbonamenti, quindi niente chiavi API e niente costi a consumo.
 Tu scrivi cosa vuoi ottenere. Lui divide il lavoro, lo assegna all'IA più adatta, lo fa controllare da un'altra, e tiene un diario per ricordarsi tutto la volta dopo.
 
-# LE QUATTRO PAGINE
+# LE CINQUE PAGINE
 Si cambia pagina con TAB (avanti) e SHIFT+TAB (indietro). ESC torna sempre a LAVORO.
 - LAVORO: a sinistra il terminale, a destra le schede della squadra. Due righe di comando in basso: $ per il terminale, › per le IA. CTRL+T sposta il cursore dall'una all'altra.
+- PROGETTI: i tuoi progetti, le chat di ognuno e i punti di ripristino.
 - CONTROLLO: la plancia della macchina. Regoli ogni parametro, scegli una mappatura, guardi i grafici in tempo reale.
 - STUDIO: la lavagna. Ci trovi il ragionamento dell'ultima richiesta — piano, passi, verdetto — e i tuoi appunti.
 - GUIDA: questa pagina.
@@ -27,6 +28,19 @@ Sopra le schede c'è la fila delle IA con i loro cervelli e cosa stanno facendo.
 - PYTHON e NODE.JS: console vive. Quello che definisci resta in memoria tra un comando e l'altro.
 - ↑↓ richiamano i comandi precedenti di quella destinazione. CTRL+C ferma il comando in corso. clear pulisce.
 - Programmi interattivi come nano, top o ssh a mano qui non funzionano: aprili in un terminale normale.
+
+# I PROGETTI
+Ogni cartella in cui lavori diventa un progetto: KORTEX la registra alla prima richiesta e ci salva dentro le chat (cartella .kortex/chat). Nella pagina PROGETTI:
+- a sinistra l'elenco dei progetti: ↑↓ scegli, INVIO apre (il terminale e le IA si spostano in quella cartella)
+- a destra le chat del progetto scelto: FRECCIA DESTRA per passarci, ↑↓ scegli, INVIO riapre quella chat con tutta la sua storia, e la squadra continua da lì
+- scrivi un nome nella riga in basso e INVIO: crea un progetto nuovo in ~/kortex-progetti
+- /progetto importa /percorso registra una cartella che hai già; /progetto apri N apre il numero N; /chat nuova inizia una chat pulita nel progetto aperto
+
+# I PUNTI DI RIPRISTINO
+Prima e dopo ogni richiesta KORTEX fotografa i file del progetto in un archivio nascosto (.kortex/istantanee.git), separato dal tuo git: la tua storia non viene toccata.
+- /ripristina mostra gli ultimi punti; /ripristina ID riporta tutti i file a quel momento, togliendo anche quelli creati dopo
+- Prima di ripristinare scatta un punto di sicurezza, quindi anche il ripristino si può annullare: il comando per farlo te lo scrive lui
+- Nella pagina PROGETTI li vedi elencati con data ed etichetta
 
 # ALLEGARE FILE E FOTO
 Le IA possono leggere qualunque file o immagine che alleghi. Tre modi:
@@ -68,6 +82,9 @@ Si scrivono nella barra in basso, iniziano con la barra /.
 - /screenshot: come CTRL+O
 - /dest: elenca le macchine del terminale; /dest 2 ne sceglie una; /dest aggiungi nome utente@host la salva
 - /scheda N: scheda a destra da 1 a 4
+- /progetto: elenca; /progetto nuovo nome · /progetto apri N · /progetto importa percorso · /progetto qui
+- /chat nuova [titolo] · /chat apri N: le chat del progetto
+- /ripristina [ID]: punti di ripristino
 - /pulisci: svuota l'output
 - /esci: esce
 

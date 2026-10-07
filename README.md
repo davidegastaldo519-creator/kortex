@@ -37,11 +37,12 @@ All'avvio parte un'animazione di circa 10 secondi: una rete di collegamenti che 
 
 Si adatta allo schermo: a tutto schermo il teschio è in scala doppia (tripla sui monitor alti) con il testo a fianco; in una finestra normale è in scala singola con il testo sotto; sul telefono parte una versione corta. L'icona nel menu e Ctrl+Alt+K aprono il terminale **a schermo intero** (serve `wmctrl`: `sudo apt install -y wmctrl`).
 
-## Lo studio: quattro pagine
+## Lo studio: cinque pagine
 
 Si passa da una pagina all'altra con **TAB**. ESC riporta sempre a LAVORO.
 
 - **LAVORO** — a sinistra il **terminale** verticale, a destra le **schede** della squadra (Ctrl+N): AGENTI con l'albero del lavoro, la mappa dei ruoli e la linea del tempo; OUTPUT; REGISTRO filtrabile (Ctrl+F); FILE. Due righe di comando in basso, `$` per il terminale e `›` per le IA, Ctrl+T per passare dall'una all'altra.
+- **PROGETTI** — ogni cartella in cui lavori diventa un progetto con le sue **chat** (come in Claude): le riapri con tutta la storia e la squadra continua da lì. Prima e dopo ogni richiesta KORTEX scatta un **punto di ripristino** in un archivio nascosto separato dal tuo git: `/ripristina ID` riporta tutti i file a quel momento, e anche il ripristino si può annullare. Un nome e INVIO crea un progetto nuovo in `~/kortex-progetti`; `/progetto importa` registra una cartella esistente.
 - **CONTROLLO** — la plancia: parametri con cursore e spiegazione, 5 mappature in scala crescente, grafici in tempo reale di CPU, RAM e pensieri al secondo, i cervelli e i cavi di ogni IA.
 - **STUDIO** — la lavagna col ragionamento dell'ultima richiesta e i tuoi appunti (`/nota`).
 - **GUIDA** — il manuale completo.
@@ -95,6 +96,9 @@ kortex
 | `/pagina N` | va alla pagina da 1 a 4 |
 | `/scheda N` | scheda a destra da 1 a 4 |
 | `/dest` | macchine del terminale: elenca, sceglie, aggiunge |
+| `/progetto` | elenca, `nuovo`, `apri N`, `importa percorso`, `qui` |
+| `/chat nuova` · `/chat apri N` | chat del progetto aperto |
+| `/ripristina [ID]` | punti di ripristino |
 | `/team` | torna alla squadra |
 | `/nuova` | in chat diretta, ricomincia la conversazione |
 | `/ia` | quali IA sono installate e attive |

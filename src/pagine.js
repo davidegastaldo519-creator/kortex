@@ -326,3 +326,42 @@ export function PaginaGuida({ h, w, scorri, massimi }) {
     ${righe.slice(inizio, inizio + spazio).map((r, i) => html`<${Text} key=${i} wrap="truncate-end" color=${r.titolo ? C.ciano : C.gesso} bold=${!!r.titolo}>${r.t || ' '}<//>`)}
   <//>`;
 }
+
+// ---------- PROGETTI: i tuoi progetti, le loro chat, i punti di ripristino ----------
+
+export function PaginaProgetti({ h, w, progetti, selezione, colonna, chat, istantanee, progettoAttuale, chatAttuale }) {
+  const wSx = Math.min(56, Math.floor(w * 0.4));
+  const quando = (iso) => (iso ? iso.slice(0, 16).replace('T', ' ') : '');
+  const p = progetti[selezione.progetto];
+  const spazioChat = Math.max(2, Math.floor((h - 4) * 0.55));
+  const spazioIst = Math.max(2, h - 4 - spazioChat - 3);
+  const primoC = Math.max(0, Math.min(chat.length - spazioChat, selezione.chat - Math.floor(spazioChat / 2)));
+  return html`<${Box} height=${h}>
+    <${Pannello} titolo="PROGETTI" nota=${`${progetti.length} · INVIO apre · scrivi un nome e INVIO per crearne uno`} colore=${colonna === 'progetti' ? C.rosa : C.viola} width=${wSx} height=${h} flexShrink=${0}>
+      ${progetti.length === 0 ? html`<${Text} color=${C.grigio}>nessun progetto: scrivi un nome qui sotto e premi INVIO, oppure /progetto importa percorso<//>` : null}
+      ${progetti.slice(0, h - 3).map((q, i) => {
+        const sel = i === selezione.progetto;
+        const aperto = q.percorso === progettoAttuale;
+        return html`<${Box} key=${q.percorso} flexDirection="column">
+          <${Text} wrap="truncate-end"><${Text} color=${sel ? C.rosa : C.grigio}>${sel ? '▶ ' : '  '}<//><${Text} color=${aperto ? C.ciano : C.gesso} bold=${sel || aperto}>${q.nome}<//><${Text} color=${C.grigio}>${aperto ? '  ● aperto' : ''}<//><//>
+          <${Text} color=${C.grigio} wrap="truncate-end">    ${q.descrizione || accorcia(q.percorso, wSx - 8)}<//>
+        <//>`;
+      })}
+    <//>
+    <${Box} flexDirection="column" flexGrow=${1}>
+      <${Pannello} titolo=${p ? 'CHAT DI ' + p.nome.toUpperCase() : 'CHAT'} nota=${chat.length ? `${chat.length} · INVIO apre · /chat nuova per iniziarne una` : ''} colore=${colonna === 'chat' ? C.rosa : C.viola} height=${spazioChat + 3} flexShrink=${0}>
+        ${!p ? html`<${Text} color=${C.grigio}>scegli un progetto a sinistra<//>` : chat.length === 0 ? html`<${Text} color=${C.grigio}>nessuna chat ancora: apri il progetto e scrivi la prima richiesta, oppure /chat nuova<//>` : null}
+        ${chat.slice(primoC, primoC + spazioChat).map((c, k) => {
+          const i = primoC + k;
+          const sel = colonna === 'chat' && i === selezione.chat;
+          const aperta = c.id === chatAttuale;
+          return html`<${Text} key=${c.id} wrap="truncate-end"><${Text} color=${sel ? C.rosa : C.grigio}>${sel ? '▶ ' : '  '}<//><${Text} color=${aperta ? C.ciano : C.gesso} bold=${sel || aperta}>${c.titolo}<//><${Text} color=${C.grigio}>   ${c.messaggi.length} messaggi · ${quando(c.ultimo)}${aperta ? ' · ● aperta' : ''}<//><//>`;
+        })}
+      <//>
+      <${Pannello} titolo="PUNTI DI RIPRISTINO" nota=${istantanee.length ? '/ripristina ID riporta i file a quel momento' : ''} flexGrow=${1}>
+        ${istantanee.length === 0 ? html`<${Text} color=${C.grigio}>ancora nessuno: KORTEX ne scatta uno prima e uno dopo ogni richiesta<//>` : null}
+        ${istantanee.slice(0, spazioIst).map((i) => html`<${Text} key=${i.id} wrap="truncate-end"><${Text} color=${C.ciano}>${i.id}<//><${Text} color=${C.grigio}>  ${i.data}  <//><${Text} color=${C.gesso}>${i.etichetta}<//><//>`)}
+      <//>
+    <//>
+  <//>`;
+}
