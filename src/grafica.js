@@ -12,7 +12,7 @@ export const C = {
 // Ogni IA ha il suo colore, uguale in tutto il programma.
 export const COLORE_IA = { claude: '#FF8A3D', codex: '#3DDC97', gemini: '#4D9FFF', ollama: '#C9C9D6' };
 export const SPIN = '⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏';
-export const PAGINE = [['lavoro', 'LAVORO'], ['terminale', 'TERMINALE'], ['controllo', 'CONTROLLO'], ['studio', 'STUDIO'], ['guida', 'GUIDA']];
+export const PAGINE = [['lavoro', 'LAVORO'], ['controllo', 'CONTROLLO'], ['studio', 'STUDIO'], ['guida', 'GUIDA']];
 
 export const lim01 = (x) => Math.max(0, Math.min(1, x || 0));
 export const accorcia = (s, n) => (s.length <= n ? s : '…' + s.slice(-Math.max(1, n - 1)));
@@ -54,7 +54,7 @@ export function Barra({ valore, larghezza, colore = C.ciano }) {
 // Due righe, cinque colonne: due emisferi e la scissura in mezzo.
 const CERVELLO = ['▄▀█▀▄', '▀▄█▄▀'];
 
-export function Cervello({ id, stato, tick }) {
+export function Cervello({ id, stato, tick, compatto = false }) {
   // stato: 'pensa' | 'pronto' | 'limite' | 'assente'
   const base = COLORE_IA[id] || C.viola;
   const righe = CERVELLO.map((riga, y) => [...riga].map((ch, x) => {
@@ -65,6 +65,7 @@ export function Cervello({ id, stato, tick }) {
     else col = mescola(base, '#1A1A24', 0.25 + 0.25 * Math.sin(tick * 0.15));
     return html`<${Text} key=${x} color=${col}>${ch}<//>`;
   }));
+  if (compatto) return html`<${Text}>${righe[0]}<//>`;
   return html`<${Box} flexDirection="column" marginRight=${1}>
     <${Text}>${righe[0]}<//>
     <${Text}>${righe[1]}<//>
@@ -154,7 +155,7 @@ export function Intestazione(props) {
         <${TeschioPiccolo} tick=${tick} occupato=${occupato} />
         <${Box} flexDirection="column" flexGrow=${1}>
           <${Box} height=${1}>
-            <${Box} flexShrink=${0}><${Gradiente} testo=${config.brand.nome.split('').join(' ')} colori=${config.brand.colori} fase=${fase} /><//>
+            <${Box} flexShrink=${0}><${Gradiente} testo=${config.brand.nome.split('').join(' ')} colori=${config.brand.colori} fase=${fase} /><${Text} color=${C.scuro}> v${props.versione || '?'}<//><//>
             ${larghezza >= 130 ? html`<${Text} color=${C.grigio} wrap="truncate-end">   ${config.brand.tagline}<//>` : null}
             <${Box} flexGrow=${1} />
             <${Linguette} pagina=${pagina} corte=${larghezza < 130} />
@@ -177,7 +178,7 @@ export function Intestazione(props) {
       <${TeschioGrande} tick=${tick} occupato=${occupato} />
       <${Box} flexDirection="column" width=${LW + 2}>
         ${NOME_CACHE.map((r, y) => html`<${Gradiente} key=${y} testo=${r} colori=${config.brand.colori} fase=${fase - y * 0.03} passo=${2} />`)}
-        <${Text}><${Text} color=${C.ciano}>${config.brand.tagline}<//><${Text} color=${C.grigio}>  ·  by <//><${Gradiente} testo="GASTY" colori=${config.brand.colori} fase=${fase * 1.5} /><//>
+        <${Text}><${Text} color=${C.ciano}>${config.brand.tagline}<//><${Text} color=${C.grigio}>  ·  by <//><${Gradiente} testo="GASTY" colori=${config.brand.colori} fase=${fase * 1.5} /><${Text} color=${C.scuro}>   v${props.versione || '?'}<//><//>
       <//>
       <${Box} flexGrow=${1} />
       <${Box} flexDirection="column" alignItems="flex-end">

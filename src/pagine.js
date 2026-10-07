@@ -1,6 +1,7 @@
 import { Box, Text } from 'ink';
 import path from 'node:path';
 import { html, C, COLORE_IA, SPIN, Pannello, Barra, Cervello, statoCervello, avvolgi, accorcia } from './grafica.js';
+import { Albero, Mappa, LineaDelTempo } from './agenti.js';
 import { campiona, hex, rgbHex } from './splash.js';
 import { graficoAlto } from './telemetria.js';
 import { PARAMETRI, MAPPATURE, testoValore, livello } from './parametri.js';
@@ -54,65 +55,9 @@ export function PaginaSelettore({ h, w, elenco, query, sel }) {
   <//>`;
 }
 
-// ---------- LAVORO ----------
+// ---------- LAVORO: terminale a sinistra, schede a destra ----------
 
-export function PaginaLavoro({ h, w, righe, scorri, log, ruoli, disponibili, compiti, file, tick, massimi, tel }) {
-  const mostraSx = w >= 80;
-  const mostraDx = w >= 120;
-  const wSx = 28;
-  const wDx = 34;
-  const hLog = 6;
-  const hSopra = h - hLog;
-  const wCentro = w - (mostraSx ? wSx : 0) - (mostraDx ? wDx : 0);
-  const spin = SPIN[tick % SPIN.length];
-  const tutte = avvolgi(righe, Math.max(10, wCentro - 4));
-  const spazio = Math.max(1, hSopra - 3);
-  massimi.lavoro = Math.max(0, tutte.length - spazio);
-  const visibili = finestraBasso(tutte, spazio, scorri);
-  const icona = (s) => (s === 'lavoro' ? [spin, C.rosa] : s === 'ok' ? ['●', C.verde] : s === 'errore' ? ['✖', C.rosso] : s === 'saltato' ? ['–', C.scuro] : ['○', C.grigio]);
-  const iconaCompito = { attesa: ['○', C.grigio], lavoro: [spin, C.rosa], ok: ['✔', C.verde], avviso: ['⚠', C.giallo], errore: ['✖', C.rosso] };
-  const testoIA = (d) => (!d.ok ? 'non collegata' : d.limitato ? 'al limite' : tel.ia[d.id]?.attivo ? `pensa · ${tel.ia[d.id].attivo}` : 'pronta');
-
-  return html`<${Box} flexDirection="column" height=${h}>
-    <${Box} height=${hSopra}>
-      ${mostraSx && html`<${Pannello} titolo="SQUADRA" width=${wSx} height=${hSopra}>
-        ${RUOLI.map(([id, nome]) => {
-          const [ic, col] = icona(ruoli[id].stato);
-          const ia = ruoli[id].ia;
-          return html`<${Text} key=${id} wrap="truncate-end"><${Text} color=${col}>${ic}<//> ${nome.padEnd(14)}<${Text} color=${ia ? COLORE_IA[ia] : C.grigio}>${ruoli[id].stato === 'saltato' ? 'spento' : ia ? disponibili[ia]?.nome : '—'}<//><//>`;
-        })}
-        <${Text}> <//>
-        ${Object.values(disponibili).map((d) => html`<${Box} key=${d.id}>
-          <${Cervello} id=${d.id} stato=${statoCervello(d, tel)} tick=${tick} />
-          <${Box} flexDirection="column">
-            <${Text} color=${d.ok ? COLORE_IA[d.id] : C.grigio} bold>${d.nome}<//>
-            <${Text} color=${d.limitato ? C.rosso : tel.ia[d.id]?.attivo ? C.rosa : C.grigio}>${testoIA(d)}<//>
-          <//>
-        <//>`)}
-      <//>`}
-      <${Pannello} titolo="OUTPUT" nota=${scorri > 0 ? `↑ ${scorri} righe più indietro — FRECCIA GIÙ per tornare in fondo` : ''} flexGrow=${1} height=${hSopra}>
-        ${visibili.map((r, i) => html`<${Text} key=${i} color=${coloreRiga(r)} wrap="truncate-end">${r || ' '}<//>`)}
-      <//>
-      ${mostraDx && html`<${Box} flexDirection="column" width=${wDx}>
-        <${Pannello} titolo="COMPITI" height=${Math.floor(hSopra / 2)}>
-          ${compiti.length ? compiti.map((c, i) => {
-            const [ic, col] = iconaCompito[c.stato] || iconaCompito.attesa;
-            return html`<${Text} key=${i} wrap="truncate-end"><${Text} color=${col}>${ic}<//> ${i + 1}. ${c.titolo}<//>`;
-          }) : html`<${Text} color=${C.grigio}>nessun lavoro in corso<//>`}
-        <//>
-        <${Pannello} titolo="FILE" height=${hSopra - Math.floor(hSopra / 2)}>
-          ${file.slice(0, Math.max(1, hSopra - Math.floor(hSopra / 2) - 3)).map((f, i) => html`<${Text} key=${i} wrap="truncate-end" color=${f.startsWith('??') ? C.verde : f.trimStart().startsWith('M') ? C.giallo : C.grigio}>${f}<//>`)}
-        <//>
-      <//>`}
-    <//>
-    <${Pannello} titolo="LOG" nota="il registro completo è nella pagina TERMINALE" colore=${C.scuro} coloreTitolo=${C.grigio} height=${hLog}>
-      ${log.slice(-(hLog - 3)).map((l, i) => html`<${Text} key=${i} color=${C.grigio} wrap="truncate-end">${l.ora}  ${l.testo}<//>`)}
-    <//>
-  <//>`;
-}
-
-// ---------- TERMINALE: registro professionale + shell vera ----------
-
+export const SCHEDE = [['agenti', 'AGENTI'], ['output', 'OUTPUT'], ['registro', 'REGISTRO'], ['file', 'FILE']];
 export const FILTRI = [['tutti', 'TUTTI'], ['claude', 'Claude'], ['codex', 'Codex'], ['gemini', 'Gemini'], ['ollama', 'Ollama'], ['errori', 'ERRORI']];
 const ICONA_EVENTO = {
   avvio: ['▶', C.ciano], strumento: ['▸', C.viola], fine: ['✔', C.verde], errore: ['✖', C.rosso],
@@ -120,48 +65,113 @@ const ICONA_EVENTO = {
 };
 const pulisci = (t) => t.replace(/^\s*[▶▸✖✔⚠⟳]\s*/, '').replace(/^(Claude|Codex|Gemini|Ollama)\s*(:|→)\s*/, '');
 
-export function PaginaTerminale({ h, w, log, filtro, fuoco, scorriLog, shell, scorriShell, inCorso, cwdShell, massimi }) {
-  const hReg = Math.max(6, Math.floor(h * 0.45));
-  const hSh = h - hReg;
-  const filtrati = log.filter((l) => filtro === 'tutti' || (filtro === 'errori' ? l.tipo === 'errore' || l.tipo === 'riserva' : l.ia === filtro));
-  const spazioReg = Math.max(1, hReg - 5);
-  massimi.registro = Math.max(0, filtrati.length - spazioReg);
-  const vReg = finestraBasso(filtrati, spazioReg, scorriLog);
-
-  const larg = Math.max(10, w - 4);
-  const righeShell = [];
-  for (const e of shell) for (const r of avvolgi([e.t], larg)) righeShell.push({ t: r, tipo: e.tipo });
-  const spazioSh = Math.max(1, hSh - 3);
-  massimi.shell = Math.max(0, righeShell.length - spazioSh);
-  const vSh = finestraBasso(righeShell, spazioSh, scorriShell);
-  const coloreShell = { cmd: C.ciano, err: '#FF7A90', info: C.giallo, out: C.gesso };
+function Terminale({ h, w, destinazioni, dest, sessione, scorri, fuoco, inCorso, massimi }) {
+  const righe = [];
+  for (const e of sessione.righe) for (const r of avvolgi([e.t], Math.max(10, w - 4))) righe.push({ t: r, tipo: e.tipo });
+  const spazio = Math.max(1, h - 5);
+  massimi.shell = Math.max(0, righe.length - spazio);
+  const vis = finestraBasso(righe, spazio, scorri);
+  const colore = { cmd: C.ciano, err: '#FF7A90', info: C.giallo, out: C.gesso };
   const casa = process.env.HOME || '';
-  const dove = cwdShell.startsWith(casa) ? '~' + cwdShell.slice(casa.length) : cwdShell;
-
-  return html`<${Box} flexDirection="column" height=${h}>
-    <${Pannello} titolo="REGISTRO" nota=${`${filtrati.length} eventi${scorriLog ? ` · ↑ ${scorriLog} più indietro` : ''}`} colore=${fuoco === 'registro' ? C.rosa : C.viola} height=${hReg}>
-      <${Box} flexShrink=${0} height=${1}>
-        <${Text} color=${C.grigio}>filtro  <//>
-        ${FILTRI.map(([id, nome]) => html`<${Text} key=${id} color=${id === filtro ? '#000000' : COLORE_IA[id] || C.grigio} backgroundColor=${id === filtro ? C.ciano : undefined} bold=${id === filtro}> ${nome} <//>`)}
-        <${Box} flexGrow=${1} />
-        ${w >= 140 ? html`<${Text} color=${C.grigio}>Ctrl+F filtro · Ctrl+L sposta il fuoco · PAG SU/GIÙ scorre<//>` : null}
-      <//>
-      <${Text} color=${C.scuro} wrap="truncate-end">${'─'.repeat(Math.max(10, w - 6))}<//>
-      ${vReg.length === 0 ? html`<${Text} color=${C.grigio}>nessun evento ancora: fai lavorare la squadra dalla pagina LAVORO<//>` : null}
-      ${vReg.map((l, i) => {
-        const [ic, col] = ICONA_EVENTO[l.tipo] || ICONA_EVENTO.info;
-        return html`<${Text} key=${i} wrap="truncate-end">
-          <${Text} color=${C.grigio}>${l.ora}  <//>
-          <${Text} color=${l.ia ? COLORE_IA[l.ia] : C.grigio} bold>${(l.ia ? l.ia.toUpperCase() : 'KORTEX').padEnd(8)}<//>
-          <${Text} color=${C.grigio}>${(l.ruolo || '').padEnd(14)}<//>
-          <${Text} color=${col}>${ic}  <//>
-          <${Text} color=${l.tipo === 'errore' ? '#FF7A90' : C.gesso}>${pulisci(l.testo)}<//>
-        <//>`;
-      })}
+  const dove = sessione.cwd ? (sessione.cwd.startsWith(casa) ? '~' + sessione.cwd.slice(casa.length) : sessione.cwd) : 'console';
+  const colDest = (d) => (d.tipo === 'locale' ? C.verde : d.tipo === 'ssh' ? C.ciano : C.viola);
+  return html`<${Pannello} titolo="TERMINALE" nota=${`${dest.nome}${dest.host ? '  ' + dest.host : ''}${inCorso ? '  · in corso, Ctrl+C ferma' : ''}`} colore=${fuoco === 'shell' ? C.rosa : C.viola} height=${h} width=${w} flexShrink=${0}>
+    <${Box} height=${1} flexShrink=${0}>
+      <${Text} color=${C.grigio}>dove  <//>
+      <${Text} wrap="truncate-end">${destinazioni.map((d) => html`<${Text} key=${d.id} color=${d.id === dest.id ? '#000000' : colDest(d)} backgroundColor=${d.id === dest.id ? colDest(d) : undefined} bold=${d.id === dest.id}> ${d.breve || d.nome} <//>`)}<//>
     <//>
-    <${Pannello} titolo="SHELL" nota=${`${dove}  ·  comandi veri del sistema${inCorso ? ' · Ctrl+C ferma il comando' : ''}${scorriShell ? ` · ↑ ${scorriShell} più indietro` : ''}`} colore=${fuoco === 'shell' ? C.rosa : C.viola} height=${hSh}>
-      ${vSh.length === 0 ? html`<${Text} color=${C.grigio}>scrivi un comando nella barra in basso e premi INVIO — ↑↓ richiamano i comandi precedenti<//>` : null}
-      ${vSh.map((r, i) => html`<${Text} key=${i} color=${coloreShell[r.tipo]} bold=${r.tipo === 'cmd'} wrap="truncate-end">${r.t || ' '}<//>`)}
+    <${Text} color=${C.grigio} wrap="truncate-end">${sessione.collegata === false ? '✖ non collegata  ' : ''}${dove}   <${Text} color=${C.scuro}>Ctrl+D cambia macchina · /dest aggiungi nome utente@host<//><//>
+    ${vis.length === 0 ? html`<${Text} color=${C.grigio}>scrivi un comando nella riga $ e premi INVIO · ↑↓ richiamano i comandi precedenti<//>` : null}
+    ${vis.map((r, i) => html`<${Text} key=${i} color=${colore[r.tipo]} bold=${r.tipo === 'cmd'} wrap="truncate-end">${r.t || ' '}<//>`)}
+  <//>`;
+}
+
+function SchedaAgenti({ h, w, tel, ruoli, disponibili, tick }) {
+  const nIA = Object.keys(disponibili).length;
+  const hLinea = nIA + 4;
+  const hMappa = 4;
+  const hAlbero = Math.max(3, h - hLinea - hMappa - 3);
+  return html`<${Box} flexDirection="column" height=${h} overflow="hidden">
+    <${Text} color=${C.ciano} bold>ALBERO DEL LAVORO<//>
+    <${Albero} tel=${tel} disponibili=${disponibili} tick=${tick} larghezza=${w} altezza=${hAlbero} />
+    <${Text} color=${C.ciano} bold>MAPPA DEI RUOLI<//>
+    <${Mappa} tel=${tel} ruoli=${ruoli} disponibili=${disponibili} tick=${tick} larghezza=${w} />
+    <${Text} color=${C.ciano} bold>LINEA DEL TEMPO<//>
+    <${LineaDelTempo} tel=${tel} disponibili=${disponibili} larghezza=${w} />
+  <//>`;
+}
+
+function SchedaRegistro({ h, w, log, filtro, scorri, massimi }) {
+  const filtrati = log.filter((l) => filtro === 'tutti' || (filtro === 'errori' ? l.tipo === 'errore' || l.tipo === 'riserva' : l.ia === filtro));
+  const spazio = Math.max(1, h - 2);
+  massimi.registro = Math.max(0, filtrati.length - spazio);
+  const vis = finestraBasso(filtrati, spazio, scorri);
+  return html`<${Box} flexDirection="column" height=${h} overflow="hidden">
+    <${Text} wrap="truncate-end">
+      <${Text} color=${C.grigio}>filtro <//>
+      ${FILTRI.map(([id, nome]) => html`<${Text} key=${id} color=${id === filtro ? '#000000' : COLORE_IA[id] || C.grigio} backgroundColor=${id === filtro ? C.ciano : undefined} bold=${id === filtro}> ${nome} <//>`)}
+      <${Text} color=${C.scuro}>  Ctrl+F · ${filtrati.length} eventi<//>
+    <//>
+    ${vis.length === 0 ? html`<${Text} color=${C.grigio}>nessun evento ancora<//>` : null}
+    ${vis.map((l, i) => {
+      const [ic, col] = ICONA_EVENTO[l.tipo] || ICONA_EVENTO.info;
+      return html`<${Text} key=${i} wrap="truncate-end">
+        <${Text} color=${C.grigio}>${l.ora} <//>
+        <${Text} color=${l.ia ? COLORE_IA[l.ia] : C.grigio} bold>${(l.ia ? l.ia.toUpperCase() : 'KORTEX').padEnd(7)}<//>
+        <${Text} color=${C.grigio}>${(l.ruolo || '').slice(0, 6).padEnd(7)}<//>
+        <${Text} color=${col}>${ic} <//>
+        <${Text} color=${l.tipo === 'errore' ? '#FF7A90' : C.gesso}>${pulisci(l.testo)}<//>
+      <//>`;
+    })}
+  <//>`;
+}
+
+export function PaginaLavoro(p) {
+  const { h, w, righe, scorri, log, ruoli, disponibili, compiti, file, tick, massimi, tel, scheda, fuoco, filtro } = p;
+  const wTerm = Math.max(44, Math.floor(w * 0.44));
+  const wDx = w - wTerm;
+  const dentro = wDx - 4;
+  const spin = SPIN[tick % SPIN.length];
+  const iconaCompito = { attesa: ['○', C.grigio], lavoro: [spin, C.rosa], ok: ['✔', C.verde], avviso: ['⚠', C.giallo], errore: ['✖', C.rosso] };
+  const testoIA = (d) => (!d.ok ? 'non collegata' : d.limitato ? 'al limite' : tel.ia[d.id]?.attivo ? `pensa · ${tel.ia[d.id].attivo}` : 'pronta');
+  const hDentro = h - 4; // bordi + riga delle schede + riga delle IA
+  const stretta = dentro < 96;
+
+  let contenuto;
+  if (scheda === 'output') {
+    const tutte = avvolgi(righe, Math.max(10, dentro));
+    massimi.lavoro = Math.max(0, tutte.length - hDentro);
+    const vis = finestraBasso(tutte, hDentro, scorri);
+    contenuto = html`<${Box} flexDirection="column" height=${hDentro} overflow="hidden">
+      ${scorri > 0 ? html`<${Text} color=${C.giallo}>↑ ${scorri} righe più indietro — FRECCIA GIÙ per tornare in fondo<//>` : null}
+      ${vis.map((r, i) => html`<${Text} key=${i} color=${coloreRiga(r)} wrap="truncate-end">${r || ' '}<//>`)}
+    <//>`;
+  } else if (scheda === 'registro') {
+    contenuto = html`<${SchedaRegistro} h=${hDentro} w=${dentro} log=${log} filtro=${filtro} scorri=${scorri} massimi=${massimi} />`;
+  } else if (scheda === 'file') {
+    contenuto = html`<${Box} flexDirection="column" height=${hDentro} overflow="hidden">
+      <${Text} color=${C.ciano} bold>COMPITI<//>
+      ${compiti.length ? compiti.map((c, i) => { const [ic, col] = iconaCompito[c.stato] || iconaCompito.attesa; return html`<${Text} key=${i} wrap="truncate-end"><${Text} color=${col}>${ic}<//> ${i + 1}. ${c.titolo}<//>`; }) : html`<${Text} color=${C.grigio}>nessun lavoro in corso<//>`}
+      <${Text}> <//>
+      <${Text} color=${C.ciano} bold>FILE CAMBIATI NEL PROGETTO<//>
+      ${file.map((f, i) => html`<${Text} key=${i} wrap="truncate-end" color=${f.startsWith('??') ? C.verde : f.trimStart().startsWith('M') ? C.giallo : C.grigio}>${f}<//>`)}
+    <//>`;
+  } else {
+    contenuto = html`<${SchedaAgenti} h=${hDentro} w=${dentro} tel=${tel} ruoli=${ruoli} disponibili=${disponibili} tick=${tick} />`;
+  }
+
+  return html`<${Box} height=${h}>
+    <${Terminale} h=${h} w=${wTerm} destinazioni=${p.destinazioni} dest=${p.dest} sessione=${p.sessione} scorri=${p.scorriShell} fuoco=${fuoco} inCorso=${p.inCorso} massimi=${massimi} />
+    <${Box} flexDirection="column" borderStyle="round" borderColor=${fuoco === 'ia' ? C.rosa : C.viola} paddingX=${1} height=${h} flexGrow=${1} overflow="hidden">
+      <${Text} wrap="truncate-end">
+        ${SCHEDE.map(([id, nome]) => html`<${Text} key=${id} color=${id === scheda ? '#000000' : C.grigio} backgroundColor=${id === scheda ? C.ciano : undefined} bold=${id === scheda}> ${stretta && id !== scheda ? nome.slice(0, 3) : nome} <//>`)}
+        ${!stretta ? html`<${Text} color=${C.scuro}>  Ctrl+N cambia scheda   <//>` : html`<${Text}> <//>`}
+        ${RUOLI.map(([id, nome]) => { const r = ruoli[id]; const col = r.stato === 'lavoro' ? C.rosa : r.stato === 'ok' ? C.verde : r.stato === 'errore' ? C.rosso : C.scuro; return html`<${Text} key=${id} color=${col}> ${r.stato === 'lavoro' ? spin : '●'}${stretta ? '' : ' ' + nome.slice(0, 4)}<//>`; })}
+      <//>
+      <${Text} wrap="truncate-end">
+        ${Object.values(disponibili).map((d) => html`<${Text} key=${d.id}><${Cervello} id=${d.id} stato=${statoCervello(d, tel)} tick=${tick} compatto=${true} /><${Text} color=${d.ok ? COLORE_IA[d.id] : C.grigio} bold>${d.nome}<//>${!stretta ? html`<${Text} color=${d.limitato ? C.rosso : tel.ia[d.id]?.attivo ? C.rosa : C.scuro}> ${testoIA(d)}<//>` : null}<${Text}>   <//><//>`)}
+      <//>
+      ${contenuto}
     <//>
   <//>`;
 }

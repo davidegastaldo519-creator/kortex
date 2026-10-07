@@ -68,5 +68,5 @@ Configurazione: ${FILE_CONFIG}`);
 
   const disponibili = await rilevamento;
   const { avviaUI } = await import('./ui.js');
-  await avviaUI({ config, disponibili, cwd: process.cwd() });
+  await avviaUI({ config, disponibili, cwd: process.cwd(), versione: versione() });
 }

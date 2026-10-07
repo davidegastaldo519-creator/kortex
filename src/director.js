@@ -25,7 +25,7 @@ export async function eseguiRuolo(ruolo, prompt, ctx, opz = {}) {
   for (const id of lista) {
     const cfg = config.ia[id];
     ui.ruolo(ruolo, 'lavoro', id);
-    const chiudi = ctx.tel?.inizio(id, ruolo) || (() => {});
+    const chiudi = ctx.tel?.inizio(id, ruolo, opz.compito ?? null) || (() => {});
     const modello = id === 'ollama'
       ? (cfg.modello === 'auto' ? disponibili.ollama?.modelli?.[0] : cfg.modello)
       : undefined;
@@ -39,7 +39,7 @@ export async function eseguiRuolo(ruolo, prompt, ctx, opz = {}) {
       modello,
       timeoutSecondi: config.timeoutSecondi,
       onTesto: (t) => { ctx.tel?.evento(); if (opz.mostra !== false) ui.out(t); },
-      onLog: (m) => { ctx.tel?.evento(); ui.log(m, { ia: id, ruolo }); },
+      onLog: (m) => { ctx.tel?.evento(); if (/^\s*▸/.test(m)) ctx.tel?.strumento(id, m.replace(/^\s*▸\s*\w+\s*→\s*/, '').trim()); ui.log(m, { ia: id, ruolo }); },
     });
     chiudi(r);
 
@@ -165,10 +165,11 @@ function leggiEsito(testo) {
   return { esito: m ? m[1].toUpperCase() : 'OK', note: m ? note : `(esito non chiaro) ${note}`.trim() };
 }
 
-async function revisiona(compito, esecuzione, ctx) {
+async function revisiona(compito, esecuzione, ctx, indice = null) {
   ctx.ui.titolo(`REVISIONE — ${compito.titolo}`);
   const r = await eseguiRuolo('revisore', promptRevisore(compito, esecuzione.testo, diffProgetto(ctx.cwd)), ctx, {
     modalita: 'lettura',
+    compito: indice,
     evita: ctx.config.revisoreIndipendente === false ? null : esecuzione.ia, // occhi nuovi, se possibile
   });
   if (!r.ok) return { esito: 'NON VERIFICATO', note: r.errore, ia: null };
@@ -184,6 +185,7 @@ export async function eseguiRichiesta({ richiesta, ctx }) {
   const inizio = Date.now();
 
   ui.pensiero?.('richiesta', richiesta);
+  ctx.tel?.nuovaRichiesta(richiesta);
   ui.titolo('DIRETTORE — divido il lavoro');
   const d = await eseguiRuolo('direttore', promptDirettore(richiesta, ctx), ctx, {
     modalita: 'lettura',
@@ -197,7 +199,7 @@ export async function eseguiRichiesta({ richiesta, ctx }) {
   compiti = compiti.slice(0, config.maxCompiti || 5);
   compiti.forEach((c, i) => ui.out(`  ${i + 1}. ${c.titolo}  [${c.tipo}${c.esecutore ? ' → ' + c.esecutore : ''}]\n`));
   const statoCompiti = compiti.map((c) => ({ titolo: c.titolo, stato: 'attesa' }));
-  const segna = (i, stato) => { statoCompiti[i].stato = stato; ui.compiti?.([...statoCompiti]); };
+  const segna = (i, stato) => { statoCompiti[i].stato = stato; ui.compiti?.([...statoCompiti]); ctx.tel?.compiti(statoCompiti); };
   ui.compiti?.([...statoCompiti]);
   ui.pensiero?.('compiti', compiti.map((c, i) => `${i + 1}. ${c.titolo}${c.esecutore ? '  → ' + c.esecutore : ''}\n   ${c.descrizione}`).join('\n'));
 
@@ -208,7 +210,7 @@ export async function eseguiRichiesta({ richiesta, ctx }) {
     segna(i, 'lavoro');
     let testoPiano = '(nessun piano: procedi direttamente sul compito)';
     if (config.usaPianificatore !== false) {
-      const piano = await eseguiRuolo('pianificatore', promptPiano(c, ctx.cwd, ctx), ctx, { modalita: 'lettura' });
+      const piano = await eseguiRuolo('pianificatore', promptPiano(c, ctx.cwd, ctx), ctx, { modalita: 'lettura', compito: i });
       if (piano.ok) testoPiano = piano.testo;
       ui.pensiero?.('piano', `${c.titolo}\n${testoPiano}`);
     } else {
@@ -222,6 +224,7 @@ export async function eseguiRichiesta({ richiesta, ctx }) {
       chiaveSessione: chiave,
       modalita,
       preferisci: c.esecutore,
+      compito: i,
     });
     ui.aggiornaFile?.();
     if (!es.ok) {
@@ -231,7 +234,7 @@ export async function eseguiRichiesta({ richiesta, ctx }) {
     }
 
     let rev = { esito: 'OK', note: '(revisione disattivata)', ia: null };
-    if (config.usaRevisore !== false) rev = await revisiona(c, es, ctx);
+    if (config.usaRevisore !== false) rev = await revisiona(c, es, ctx, i);
     else ui.ruolo('revisore', 'saltato', null);
     let correzioni = 0;
     while (config.usaRevisore !== false && rev.esito === 'CORREGGI' && correzioni < (config.maxCorrezioni ?? 1)) {
@@ -244,11 +247,12 @@ export async function eseguiRichiesta({ richiesta, ctx }) {
         promptBreve: promptCorrezioneBreve(rev.note),
         modalita,
         preferisci: es.ia,
+        compito: i,
       });
       ui.aggiornaFile?.();
       if (!es2.ok) break;
       es = es2;
-      rev = await revisiona(c, es, ctx);
+      rev = await revisiona(c, es, ctx, i);
     }
     esiti.push({ c, esito: rev.esito, note: rev.note, esecutore: es.ia, revisore: rev.ia });
     segna(i, rev.esito === 'OK' ? 'ok' : 'avviso');

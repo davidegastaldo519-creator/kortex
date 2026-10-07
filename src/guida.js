@@ -5,40 +5,51 @@ export const GUIDA = `
 KORTEX fa lavorare insieme più intelligenze artificiali sullo stesso progetto: Claude Code, Codex, Gemini e Ollama. Usa le CLI già installate e collegate ai tuoi abbonamenti, quindi niente chiavi API e niente costi a consumo.
 Tu scrivi cosa vuoi ottenere. Lui divide il lavoro, lo assegna all'IA più adatta, lo fa controllare da un'altra, e tiene un diario per ricordarsi tutto la volta dopo.
 
-# LE CINQUE PAGINE
+# LE QUATTRO PAGINE
 Si cambia pagina con TAB (avanti) e SHIFT+TAB (indietro). ESC torna sempre a LAVORO.
-- LAVORO: dove scrivi le richieste e guardi le IA lavorare. A sinistra la squadra con i cervelli delle IA, a destra la lista dei compiti con il loro stato.
-- TERMINALE: in alto il registro completo di tutto quello che fanno le IA, filtrabile; in basso una shell vera per lanciare comandi senza uscire da KORTEX.
+- LAVORO: a sinistra il terminale, a destra le schede della squadra. Due righe di comando in basso: $ per il terminale, › per le IA. CTRL+T sposta il cursore dall'una all'altra.
 - CONTROLLO: la plancia della macchina. Regoli ogni parametro, scegli una mappatura, guardi i grafici in tempo reale.
 - STUDIO: la lavagna. Ci trovi il ragionamento dell'ultima richiesta — piano, passi, verdetto — e i tuoi appunti.
 - GUIDA: questa pagina.
 
-# ALLEGARE FILE E FOTO
-Le IA possono leggere qualunque file o immagine che alleghi. Tre modi:
-- TRASCINA il file nella finestra del terminale: compare nella barra allegati sopra la riga di scrittura.
-- /allega apre un selettore: scrivi una parte del nome, ↑↓ per scegliere, INVIO per allegare. Cerca nel progetto, in Download, Immagini, Scrivania e Documenti. Puoi anche scrivere /allega seguito dal percorso.
-- CTRL+O fa uno screenshot con Flameshot: selezioni la zona e si allega da solo.
-Gli allegati vengono copiati nella cartella .kortex/allegati del progetto e partono con la richiesta successiva. /allegati li elenca, /togli 2 toglie il secondo, /togli tutti li toglie tutti.
+# LE SCHEDE DI LAVORO
+A destra, CTRL+N le fa girare (o /scheda 1..4):
+- AGENTI: l'albero del lavoro (richiesta → compiti → ruoli → strumenti usati), la mappa dei ruoli con i collegamenti che si accendono, la linea del tempo con una corsia per ogni IA.
+- OUTPUT: tutto quello che scrivono le IA, scorrevole.
+- REGISTRO: ogni evento con ora, IA col suo colore, ruolo e simbolo. ▶ avvio, ▸ strumento, ✔ finito, ✖ errore, ⟳ riserva. CTRL+F cambia il filtro.
+- FILE: i compiti in corso e i file cambiati nel progetto.
+Sopra le schede c'è la fila delle IA con i loro cervelli e cosa stanno facendo.
 
 # IL TERMINALE
-- REGISTRO: ogni evento ha l'ora, l'IA col suo colore, il ruolo, un simbolo e il testo. ▶ avvio, ▸ strumento usato, ✔ finito, ✖ errore, ⟳ passaggio alla riserva.
-- CTRL+F cambia il filtro: tutti, una sola IA, solo gli errori.
-- SHELL: scrivi un comando e premi INVIO, come in un terminale normale. ↑↓ richiamano i comandi precedenti, cd cambia cartella, clear pulisce.
-- CTRL+C ferma il comando in corso. CTRL+L sposta lo scorrimento tra registro e shell.
-- Programmi interattivi come nano, top o ssh qui non funzionano: aprili in un terminale normale.
+È a sinistra nella pagina LAVORO e lavora su più macchine. CTRL+D cambia destinazione (o /dest N):
+- QUESTO PC: comandi normali, cd compreso, con la cartella che si ricorda.
+- SSH: le macchine che hai già in ~/.ssh/config compaiono da sole. Per aggiungerne una: /dest aggiungi vps root@indirizzo (porta facoltativa). Serve una chiave SSH già caricata su quella macchina: le password qui non si possono scrivere. Per caricarla una volta: ssh-copy-id utente@indirizzo da un terminale normale.
+- PYTHON e NODE.JS: console vive. Quello che definisci resta in memoria tra un comando e l'altro.
+- ↑↓ richiamano i comandi precedenti di quella destinazione. CTRL+C ferma il comando in corso. clear pulisce.
+- Programmi interattivi come nano, top o ssh a mano qui non funzionano: aprili in un terminale normale.
+
+# ALLEGARE FILE E FOTO
+Le IA possono leggere qualunque file o immagine che alleghi. Tre modi:
+- TRASCINA il file nella finestra del terminale mentre il cursore è nella riga ›: compare nella barra allegati.
+- /allega apre un selettore: scrivi una parte del nome, ↑↓ per scegliere, INVIO per allegare. Cerca nel progetto, in Download, Immagini, Scrivania e Documenti.
+- CTRL+O fa uno screenshot con Flameshot: selezioni la zona e si allega da solo.
+Gli allegati vengono copiati nella cartella .kortex/allegati del progetto e partono con la richiesta successiva. /allegati li elenca, /togli 2 toglie il secondo, /togli tutti li toglie tutti.
 
 # I CERVELLI DELLE IA
 Ogni IA ha un cervello col suo colore: Claude arancio, Codex verde, Gemini blu, Ollama grigio. Quando pensa si accende e ci corre sopra un'onda di luce; da ferma respira piano; rosso lampeggiante vuol dire che ha finito il limite dell'abbonamento; spento vuol dire non collegata.
 
 # I TASTI
 - TAB / SHIFT+TAB: pagina successiva / precedente
+- CTRL+T: cursore nel terminale ($) oppure nelle IA (›)
+- CTRL+N: scheda successiva a destra
+- CTRL+D: macchina successiva del terminale
 - FRECCIA SU / GIÙ: scorre il testo (nella plancia: sceglie il parametro)
 - PAG SU / PAG GIÙ: scorre di una pagina intera
 - FRECCIA SINISTRA / DESTRA: nella plancia, cambia il valore del parametro
 - 1 2 3 4 5: nella plancia, applica una mappatura
 - ESC: torna a LAVORO (nel selettore file: lo chiude)
 - CTRL+O: screenshot da allegare
-- CTRL+F e CTRL+L: nella pagina TERMINALE, filtro del registro e fuoco
+- CTRL+F: filtro del registro
 - CTRL+C: ferma il comando della shell; se non ce n'è nessuno, esce
 
 # I COMANDI
@@ -55,6 +66,8 @@ Si scrivono nella barra in basso, iniziano con la barra /.
 - /allegati: elenca gli allegati pronti
 - /togli N: toglie un allegato (/togli tutti per tutti)
 - /screenshot: come CTRL+O
+- /dest: elenca le macchine del terminale; /dest 2 ne sceglie una; /dest aggiungi nome utente@host la salva
+- /scheda N: scheda a destra da 1 a 4
 - /pulisci: svuota l'output
 - /esci: esce
 
@@ -93,7 +106,8 @@ Ogni progetto ha una cartella nascosta .kortex con il diario (STATO.md), le conv
 
 # PROBLEMI COMUNI
 - Un'IA ha il pallino vuoto: non è installata o non è collegata. Lancia il suo comando da solo (claude, codex, gemini) e fai il login.
-- Gemini dà errore di account: il login Google è riuscito ma la quota gratuita non è attiva su quell'account.
+- Gemini dice "chiede di fare il login": esci da KORTEX, lancia gemini da solo in un terminale e accedi con Google.
+- Gemini dà errore di account (IneligibleOrProjectId): il tuo account Google non ha la quota gratuita attiva da sola e vuole un progetto Google Cloud. Si sistema una volta: vai su console.cloud.google.com, crea un progetto (nome a piacere) e copia il suo ID; nel menu APIs cerca "Gemini for Google Cloud" e attivala; poi in un terminale normale scrivi: echo 'export GOOGLE_CLOUD_PROJECT=il-tuo-id' >> ~/.bashrc  e riapri il terminale. Rilancia gemini da solo per verificare.
 - Una correzione non parte: controlla il parametro Correzioni massime nella plancia.
 - L'interfaccia è lenta: metti Animazioni su LEGGERA o SPENTA.
 - Per aggiornare KORTEX: esci e scrivi kortex --aggiorna.

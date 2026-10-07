@@ -3,6 +3,8 @@ import { spawn } from 'node:child_process';
 const ANSI = /\x1b\[[0-9;?]*[A-Za-z]/g;
 // Frasi con cui le CLI segnalano che l'abbonamento ha finito il limite.
 const LIMITE = /rate.?limit|usage limit|limit reached|quota|too many requests|\b429\b|resource_exhausted/i;
+// Una CLI che chiede di fare il login o una conferma non può andare avanti qui dentro.
+const CHIEDE_LOGIN = /Opening authentication page|Do you want to continue\? \[Y\/n\]|Please visit the following URL|sign in|log ?in to continue|IneligibleOrProjectId/i;
 
 const attivi = new Set();
 
@@ -50,6 +52,14 @@ export function eseguiIA({ cfg, prompt, cwd, sessione, extra, modello, timeoutSe
     let buffer = '', testo = '', errori = '', finale = null, costo = null;
     let sessioneNuova = sessione || null;
     let chiuso = false;
+    let bloccato = null;
+    const controllaBlocco = (t) => {
+      if (bloccato || !CHIEDE_LOGIN.test(t)) return;
+      bloccato = /IneligibleOrProjectId/.test(t)
+        ? `${cfg.nome}: l'account non ha la quota attiva (serve un progetto Google Cloud: vedi la GUIDA, voce "Gemini")`
+        : `${cfg.nome} chiede di fare il login: esci da KORTEX, lancia "${cfg.bin}" da solo e accedi`;
+      try { proc.kill('SIGTERM'); } catch { /* */ }
+    };
 
     const timer = setTimeout(() => {
       errori += '\n[tempo scaduto]';
@@ -60,6 +70,8 @@ export function eseguiIA({ cfg, prompt, cwd, sessione, extra, modello, timeoutSe
       const s = d.toString();
       if (cfg.parser !== 'claude-stream') {
         const pulito = s.replace(ANSI, '');
+        controllaBlocco(pulito);
+        if (bloccato) return;
         testo += pulito;
         onTesto?.(pulito);
         return;
@@ -93,6 +105,7 @@ export function eseguiIA({ cfg, prompt, cwd, sessione, extra, modello, timeoutSe
     });
 
     proc.stderr.on('data', (d) => {
+      controllaBlocco(d.toString());
       errori += d.toString().replace(ANSI, '');
       if (errori.length > 20000) errori = errori.slice(-20000);
     });
@@ -112,8 +125,8 @@ export function eseguiIA({ cfg, prompt, cwd, sessione, extra, modello, timeoutSe
     proc.on('close', (codice) => {
       const uscita = (finale ?? testo).trim();
       const limitato = LIMITE.test(errori) || (codice !== 0 && LIMITE.test(uscita));
-      const ok = codice === 0 && !limitato && uscita.length > 0;
-      const ultimaRiga = errori.trim().split('\n').slice(-3).join(' ');
+      const ok = codice === 0 && !limitato && !bloccato && uscita.length > 0;
+      const ultimaRiga = bloccato || errori.trim().split('\n').slice(-3).join(' ');
       fine({
         ok,
         testo: uscita,
