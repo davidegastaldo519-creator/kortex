@@ -30,6 +30,13 @@ Sopra le schede c'è la fila delle IA con i loro cervelli e cosa stanno facendo.
 - ↑↓ richiamano i comandi precedenti di quella destinazione. CTRL+C ferma il comando in corso. clear pulisce.
 - Programmi interattivi come nano, top o ssh a mano qui non funzionano: aprili in un terminale normale.
 
+# LA MEMORIA
+KORTEX ricorda su tre livelli, e li vedi tutti nella pagina STUDIO, a destra, nella MAPPA DELLA MEMORIA:
+- PREFERENZE: come vuoi che si lavori, in tutti i progetti. /ricorda testo per aggiungerne una, /dimentica N per toglierla. Il memorista le aggiunge da solo quando ne esprimi una in una richiesta ("d'ora in poi…").
+- RIASSUNTO DEL PROGETTO: cos'è, com'è fatto, cosa resta da fare. Il memorista lo riscrive dopo ogni richiesta e il direttore lo legge prima di dividere il lavoro.
+- SOLUZIONI IMPARATE: quando in un lavoro esce un trucco o la soluzione a un errore che serve anche altrove, il memorista la salva nel DATABASE (categoria note, tag #soluzione). Così la ritrovi negli altri progetti.
+Il memorista lavora in sottofondo dopo ogni richiesta e non ti blocca. Si spegne dalla plancia (Memoria automatica). /memoria ti dice dove stanno i file.
+
 # I PROGETTI
 Ogni cartella in cui lavori diventa un progetto: KORTEX la registra alla prima richiesta e ci salva dentro le chat (cartella .kortex/chat). Nella pagina PROGETTI:
 - a sinistra l'elenco dei progetti: ↑↓ scegli, INVIO apre (il terminale e le IA si spostano in quella cartella)
@@ -61,6 +68,20 @@ Le IA possono leggere qualunque file o immagine che alleghi. Tre modi:
 - /allega apre un selettore: scrivi una parte del nome, ↑↓ per scegliere, INVIO per allegare. Cerca nel progetto, in Download, Immagini, Scrivania e Documenti.
 - CTRL+O fa uno screenshot con Flameshot: selezioni la zona e si allega da solo.
 Gli allegati vengono copiati nella cartella .kortex/allegati del progetto e partono con la richiesta successiva. /allegati li elenca, /togli 2 toglie il secondo, /togli tutti li toglie tutti.
+
+# LA GRAFICA
+- TEMI: neon, fuoco, ghiaccio, matrix. Dalla plancia (Tema di colore) o con /tema. Cambiano interfaccia, logo e animazione iniziale.
+- EMBLEMI: nell'angolo del DATABASE c'è un cervello in un barattolo, nell'angolo dei PROGETTI una mappa stellare. Si accendono solo quando succede qualcosa: le bolle salgono quando le IA leggono o scrivono nel database, la luce corre tra le stelle quando apri un progetto o salvi un punto di ripristino.
+- BARRA DI AVANZAMENTO: mentre la squadra lavora, la riga in fondo mostra quanto manca, il compito in corso, chi sta lavorando e da quanto.
+- NOTIFICHE: in alto a destra compaiono per qualche secondo quando un compito finisce, quando finisce la richiesta e quando il memorista impara qualcosa. A fine richiesta arriva anche una notifica di sistema, così la vedi pure se stai lavorando in un'altra finestra.
+- TRANSIZIONI: cambiando pagina una banda di luce attraversa lo schermo. Con Animazioni SPENTA sparisce.
+
+# LE FINESTRE
+KORTEX si apre grande ma in una finestra normale: puoi stringerla, spostarla, affiancarla. Si ridisegna da solo alla misura nuova.
+- CTRL+ALT+SHIFT + FRECCIA SINISTRA o DESTRA: metà schermo
+- CTRL+ALT+SHIFT + FRECCIA SU o GIÙ: metà alta o bassa
+- CTRL+ALT+SHIFT+INVIO: massimizza o ripristina
+Valgono per qualunque finestra, non solo KORTEX: utile per tenere affiancati KORTEX e il browser, o due KORTEX su progetti diversi.
 
 # I CERVELLI DELLE IA
 Ogni IA ha un cervello col suo colore: Claude arancio, Codex verde, Gemini blu, Ollama grigio. Quando pensa si accende e ci corre sopra un'onda di luce; da ferma respira piano; rosso lampeggiante vuol dire che ha finito il limite dell'abbonamento; spento vuol dire non collegata.
@@ -99,6 +120,8 @@ Si scrivono nella barra in basso, iniziano con la barra /.
 - /chat nuova [titolo] · /chat apri N: le chat del progetto
 - /ripristina [ID]: punti di ripristino
 - /db: tutti i comandi del database
+- /tema neon | fuoco | ghiaccio | matrix: colori di tutto KORTEX
+- /ricorda testo · /dimentica N · /memoria: la memoria
 - /pulisci: svuota l'output
 - /esci: esce
 

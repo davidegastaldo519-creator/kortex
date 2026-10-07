@@ -39,10 +39,19 @@ export const PARAMETRI = [
     chiave: 'animazioni', nome: 'Animazioni', tipo: 'scelta', valori: ['piena', 'leggera', 'spenta'],
     spiega: 'Quanto si muove l\'interfaccia. Su un PC lento, LEGGERA o SPENTA lasciano più CPU alle IA.',
   },
+  {
+    chiave: 'tema', nome: 'Tema di colore', tipo: 'scelta', valori: ['neon', 'fuoco', 'ghiaccio', 'matrix'],
+    spiega: 'I colori di tutto KORTEX: interfaccia, logo e animazione iniziale. NEON viola e ciano, FUOCO rosso e oro, GHIACCIO azzurro e bianco, MATRIX verde.',
+  },
+  {
+    chiave: 'memoriaAutomatica', nome: 'Memoria automatica', tipo: 'sino',
+    spiega: 'Dopo ogni richiesta il MEMORISTA aggiorna il riassunto del progetto, salva nel database le soluzioni riutilizzabili e registra le preferenze che hai espresso. Costa una chiamata in più, fatta in sottofondo.',
+  },
   { chiave: 'titolare.direttore', ruolo: 'direttore', nome: 'Titolare Direttore', tipo: 'titolare', spiega: 'Quale IA divide il lavoro. Le altre restano come riserva, in ordine.' },
   { chiave: 'titolare.pianificatore', ruolo: 'pianificatore', nome: 'Titolare Pianificatore', tipo: 'titolare', spiega: 'Quale IA scrive i piani. Le altre restano come riserva.' },
   { chiave: 'titolare.esecutore', ruolo: 'esecutore', nome: 'Titolare Esecutore', tipo: 'titolare', spiega: 'Quale IA scrive davvero i file. Solo Claude e Codex possono farlo.' },
   { chiave: 'titolare.revisore', ruolo: 'revisore', nome: 'Titolare Revisore', tipo: 'titolare', spiega: 'Quale IA controlla il lavoro. Meglio se diversa dall\'esecutore.' },
+  { chiave: 'titolare.memorista', ruolo: 'memorista', nome: 'Titolare Memorista', tipo: 'titolare', spiega: 'Quale IA aggiorna la memoria dopo ogni richiesta. Gemini va benissimo: è un lavoro di riassunto.' },
 ];
 
 // Mappature pronte, dalla più leggera alla più profonda.

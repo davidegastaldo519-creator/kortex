@@ -68,6 +68,13 @@ export function apriStato(cwd) {
       fs.mkdirSync(cartella, { recursive: true });
       return cartella;
     },
+    riassunto() {
+      try { return fs.readFileSync(path.join(dir, 'riassunto.md'), 'utf8').trim(); } catch { return ''; }
+    },
+    salvaRiassunto(testo) {
+      assicura();
+      fs.writeFileSync(path.join(dir, 'riassunto.md'), String(testo).trim() + '\n');
+    },
     appunti() {
       try { return fs.readFileSync(path.join(dir, 'appunti.md'), 'utf8').trim().split('\n'); } catch { return []; }
     },

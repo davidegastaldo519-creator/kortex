@@ -53,7 +53,7 @@ Poi `termux-setup-storage` una volta, per vedere foto e download del telefono. G
 
 All'avvio parte un'animazione di circa 10 secondi: una rete di collegamenti che porta dati al centro, un cervello a circuiti che si accende — diverso a ogni avvio — un teschio che si forma sopra il cervello, si crepa con una scossa e accende gli occhi, scintille dalla crepa, poi il nome KORTEX e la dedica al creatore in caratteri grandi. Si salta con un tasto qualsiasi, o del tutto con `kortex --no-anim`.
 
-Si adatta allo schermo: a tutto schermo il teschio è in scala doppia (tripla sui monitor alti) con il testo a fianco; in una finestra normale è in scala singola con il testo sotto; sul telefono parte una versione corta. L'icona nel menu e Ctrl+Alt+K aprono il terminale **a schermo intero** (serve `wmctrl`: `sudo apt install -y wmctrl`).
+Si adatta allo schermo: a tutto schermo il teschio è in scala doppia (tripla sui monitor alti) con il testo a fianco; in una finestra normale è in scala singola con il testo sotto; sul telefono parte una versione corta. L'icona nel menu e Ctrl+Alt+K aprono il terminale **grande (massimizzato)** ma come finestra normale: la stringi, la sposti, la affianchi ad altre, e KORTEX si ridisegna alla misura nuova. Serve `wmctrl`: `sudo apt install -y wmctrl`.
 
 ## Lo studio: sei pagine
 
@@ -69,6 +69,14 @@ Si passa da una pagina all'altra con **TAB**. ESC riporta sempre a LAVORO.
 ## Il terminale multi-macchina
 
 Lavora su **questo PC**, sulle **macchine SSH** (quelle già in `~/.ssh/config` compaiono da sole; `/dest aggiungi vps root@indirizzo` ne salva altre) e su **console Python e Node.js** che restano vive tra un comando e l'altro. Ctrl+D cambia macchina, ↑↓ richiamano i comandi precedenti, `cd` si ricorda, Ctrl+C ferma il comando. Per SSH serve una chiave già caricata sulla macchina (`ssh-copy-id`): le password non si possono scrivere qui.
+
+## La memoria
+
+Tre livelli, tutti visibili nella pagina STUDIO: **preferenze** valide in ogni progetto (`/ricorda`, `/dimentica`), **riassunto del progetto** riscritto dopo ogni richiesta e letto dal direttore, **soluzioni imparate** salvate da sole nel database con il tag `#soluzione`. Le scrive il **memorista**, un'IA che lavora in sottofondo dopo ogni richiesta.
+
+## Grafica
+
+Temi **neon, fuoco, ghiaccio, matrix** (`/tema`), emblemi animati negli angoli di DATABASE (cervello nel barattolo) e PROGETTI (mappa stellare) che si accendono quando succede qualcosa, barra di avanzamento durante il lavoro, notifiche a comparsa e di sistema, transizioni tra le pagine. Su Lubuntu: **Ctrl+Alt+Shift + frecce** affiancano le finestre a metà schermo, **Ctrl+Alt+Shift+INVIO** massimizza.
 
 ## Due modi di lavorare
 
@@ -119,6 +127,8 @@ kortex
 | `/chat nuova` · `/chat apri N` | chat del progetto aperto |
 | `/ripristina [ID]` | punti di ripristino |
 | `/db` | database: aggiungi, nota, cerca, sposta, tag, togli, github, sync |
+| `/tema nome` | neon, fuoco, ghiaccio, matrix |
+| `/ricorda` · `/dimentica N` · `/memoria` | la memoria |
 | `/team` | torna alla squadra |
 | `/nuova` | in chat diretta, ricomincia la conversazione |
 | `/ia` | quali IA sono installate e attive |

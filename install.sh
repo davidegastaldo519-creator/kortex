@@ -60,18 +60,18 @@ if [ "$MACCHINA" = "Linux" ]; then
   cat > "$DEST/kortex-avvia" << EOF
 #!/usr/bin/env bash
 cd "\$HOME/progetti"
+# Si apre grande (massimizzata) ma resta una finestra vera: la stringi, la sposti, la affianchi ad altre.
 if [ -n "\$DISPLAY" ]; then
   sleep 0.3
-  if command -v wmctrl > /dev/null; then wmctrl -r :ACTIVE: -b add,fullscreen
-  elif command -v xdotool > /dev/null; then xdotool getactivewindow key F11; fi
+  if command -v wmctrl > /dev/null; then wmctrl -r :ACTIVE: -b remove,fullscreen; wmctrl -r :ACTIVE: -b add,maximized_vert,maximized_horz
+  elif command -v xdotool > /dev/null; then xdotool getactivewindow windowsize 100% 100%; fi
 fi
 "$DEST/kortex"
-if [ -n "\$DISPLAY" ] && command -v wmctrl > /dev/null; then wmctrl -r :ACTIVE: -b remove,fullscreen; fi
 exec bash
 EOF
   chmod +x "$DEST/kortex-avvia"
   if ! command -v wmctrl > /dev/null && ! command -v xdotool > /dev/null; then
-    echo "Per aprire KORTEX a schermo intero serve wmctrl:  sudo apt install -y wmctrl"
+    echo "Per aprire KORTEX grande serve wmctrl:  sudo apt install -y wmctrl"
   fi
 
   cp "$QUI/assets/kortex.svg" "$HOME/.local/share/icons/kortex.svg"
@@ -102,6 +102,14 @@ EOF
       sed -i "s|</keyboard>|  <keybind key=\"C-A-k\"><action name=\"Execute\"><command>$TERM_CMD $DEST/kortex-avvia</command></action></keybind>\n</keyboard>|" "$CFG"
       openbox --reconfigure 2> /dev/null || true
       echo "Scorciatoia Ctrl+Alt+K aggiunta"
+    fi
+    # Finestre affiancate: Ctrl+Alt+Shift + frecce = metà schermo, + INVIO = massimizza / ripristina.
+    if [ -f "$CFG" ] && ! grep -q "kortex-finestre" "$CFG"; then
+      cp "$CFG" "$CFG.bak-finestre"
+      META='<action name="UnmaximizeFull"/><action name="MoveResizeTo">'
+      sed -i "s|</keyboard>|  <!-- kortex-finestre -->\n  <keybind key=\"C-A-S-Left\">$META<x>0</x><y>0</y><width>50%</width><height>100%</height></action></keybind>\n  <keybind key=\"C-A-S-Right\">$META<x>-0</x><y>0</y><width>50%</width><height>100%</height></action></keybind>\n  <keybind key=\"C-A-S-Up\">$META<x>0</x><y>0</y><width>100%</width><height>50%</height></action></keybind>\n  <keybind key=\"C-A-S-Down\">$META<x>0</x><y>-0</y><width>100%</width><height>50%</height></action></keybind>\n  <keybind key=\"C-A-S-Return\"><action name=\"ToggleMaximize\"/></keybind>\n</keyboard>|" "$CFG"
+      openbox --reconfigure 2> /dev/null || true
+      echo "Finestre affiancate: Ctrl+Alt+Shift + frecce (metà schermo), Ctrl+Alt+Shift+INVIO (massimizza)"
     fi
   fi
 fi

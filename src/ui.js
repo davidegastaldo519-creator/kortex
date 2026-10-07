@@ -5,7 +5,10 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
-import { eseguiRichiesta, chatDiretta, catalogaCon } from './director.js';
+import { eseguiRichiesta, chatDiretta, catalogaCon, aggiornaMemoria } from './director.js';
+import { applicaTema, TEMI } from './temi.js';
+import { preferenze, ricorda, dimentica, percorsoPreferenze } from './memoria.js';
+import { campiona, hex, rgbHex } from './splash.js';
 import * as db from './database.js';
 import { apriStato, righeFile } from './state.js';
 import { fermaTutti } from './adapters.js';
@@ -13,7 +16,7 @@ import { FILE_CONFIG } from './config.js';
 import { Telemetria } from './telemetria.js';
 import { PARAMETRI, cambia, applicaMappatura, salvaConfig } from './parametri.js';
 import { elencoDestinazioni, Sessioni } from './terminale.js';
-import { html, C, PAGINE, Intestazione } from './grafica.js';
+import { html, C, PAGINE, Intestazione, SPIN } from './grafica.js';
 import { elencoProgetti, creaProgetto, importaProgetto, registraProgetto, toccaProgetto, progettoDi, elencoChat, creaChat, salvaChat, caricaChat, riassuntoChat, istantanea, elencoIstantanee, ripristina } from './progetti.js';
 import { RUOLI, FILTRI, SCHEDE, BarraAllegati, PaginaSelettore, PaginaLavoro, PaginaControllo, PaginaStudio, PaginaGuida, PaginaProgetti, PaginaDatabase } from './pagine.js';
 
@@ -81,6 +84,10 @@ function App({ config, disponibili, cwd: cwdIniziale, versione }) {
   const [dbQuery, setDbQuery] = useState('');
   const [dbSel, setDbSel] = useState(0);
   const [dbVersione, setDbVersione] = useState(0);
+  const [notifiche, setNotifiche] = useState([]);
+  const [transizione, setTransizione] = useState(0);
+  const [eventi, setEventi] = useState({ db: 0, dbTesto: '', prog: 0, progTesto: '', memoria: 0 });
+  const inizioLavoro = useRef(0);
   const [scheda, setScheda] = useState('agenti');
   const [fuoco, setFuoco] = useState('ia');
   const [righe, setRighe] = useState(['']);
@@ -118,10 +125,19 @@ function App({ config, disponibili, cwd: cwdIniziale, versione }) {
   const dest = destinazioni[Math.min(iDest, destinazioni.length - 1)];
   const sessione = sessioni.current.di(dest);
 
+  // Mentre trascini il bordo della finestra arrivano decine di ridimensionamenti: aspetto che ti fermi,
+  // pulisco lo schermo (altrimenti restano pezzi del disegno vecchio) e ridisegno alla misura nuova.
   useEffect(() => {
-    const f = () => setDim({ c: stdout.columns, r: stdout.rows });
+    let attesa = null;
+    const f = () => {
+      clearTimeout(attesa);
+      attesa = setTimeout(() => {
+        stdout.write('\x1b[2J\x1b[3J\x1b[H');
+        setDim({ c: stdout.columns, r: stdout.rows });
+      }, 90);
+    };
     stdout.on('resize', f);
-    return () => stdout.off('resize', f);
+    return () => { clearTimeout(attesa); stdout.off('resize', f); };
   }, [stdout]);
 
   useEffect(() => {
@@ -132,9 +148,14 @@ function App({ config, disponibili, cwd: cwdIniziale, versione }) {
   }, [config.animazioni, occupato]);
 
   useEffect(() => {
-    const t = setInterval(() => { tel.current.campiona(); ridisegna((x) => x + 1); }, 1000);
+    const t = setInterval(() => { tel.current.campiona(); setNotifiche((n) => n.filter((x) => Date.now() - x.t < 5000)); ridisegna((x) => x + 1); }, 1000);
     return () => clearInterval(t);
   }, []);
+  useEffect(() => {
+    if (!transizione || config.animazioni === 'spenta') return;
+    const t = setInterval(() => { if (Date.now() - transizione > 320) { clearInterval(t); setTransizione(0); } else ridisegna((x) => x + 1); }, 30);
+    return () => clearInterval(t);
+  }, [transizione]);
 
   const scrivi = useCallback((testo) => setRighe((prima) => {
     const parti = String(testo).split('\n');
@@ -156,8 +177,10 @@ function App({ config, disponibili, cwd: cwdIniziale, versione }) {
       compiti: (l) => setCompiti(l),
       pensiero: (tipo, testo) => setLavagna((l) => ({ ...l, [tipo]: tipo === 'richiesta' ? testo : l[tipo] && tipo !== 'compiti' ? l[tipo] + '\n\n' + testo : testo, ...(tipo === 'richiesta' ? { compiti: '', piano: '', revisione: '' } : {}) })),
       aggiornaFile,
+      notifica: (testo, tipo = 'info') => setNotifiche((n) => [...n.slice(-3), { testo, tipo, t: Date.now() }]),
     };
   }
+  const segnaEvento = (dove, testo) => setEventi((e) => ({ ...e, [dove]: Date.now(), [dove + 'Testo']: testo }));
 
   useEffect(() => {
     aggiornaFile();
@@ -181,6 +204,7 @@ function App({ config, disponibili, cwd: cwdIniziale, versione }) {
     setIDest(0);
     toccaProgetto(percorso);
     setVersioneProgetti((v) => v + 1);
+    segnaEvento('prog', 'progetto aperto');
     setFile(righeFile(percorso));
     const v = progettoDi(percorso);
     scrivi(`\n▌ PROGETTO APERTO: ${v?.nome || path.basename(percorso)}   (${percorso})\n${v?.descrizione ? v.descrizione + '\n' : ''}Scrivi una richiesta per iniziare una chat nuova, oppure apri una chat esistente dalla pagina PROGETTI.\n`);
@@ -192,6 +216,7 @@ function App({ config, disponibili, cwd: cwdIniziale, versione }) {
     scrivi(`▌ CHAT: ${c.titolo}   (${c.messaggi.length} messaggi)\n`);
     for (const m of c.messaggi) scrivi(m.chi === 'utente' ? `\n› ${m.testo}\n` : `${m.testo}\n`);
     scrivi('\n▌ Continua da qui: la squadra ricorda questa conversazione.\n');
+    segnaEvento('prog', 'chat riaperta');
     setPagina('lavoro');
     setVersioneProgetti((v) => v + 1);
   };
@@ -219,11 +244,13 @@ function App({ config, disponibili, cwd: cwdIniziale, versione }) {
   };
   const aggiungiAlDb = async (cosa, tipo = 'file') => {
     scrivi(`\n📚 aggiungo al database: ${cosa}${catalogatorePronto() ? '  (il catalogatore scrive la scheda…)' : ''}\n`);
+    segnaEvento('db', 'catalogo…');
     try {
       const cat = catalogatorePronto() ? catalogatore : null;
       const v = tipo === 'nota' ? await db.aggiungiNota(cosa, cat) : /^https?:\/\//i.test(cosa) ? await db.aggiungiUrl(cosa, cat) : await db.aggiungiFile(cosa, cat);
       scrivi(`✔ ${v.titolo}  →  ${v.categoria}${v.tag.length ? '  #' + v.tag.join(' #') : ''}\n${v.descrizione ? '  ' + v.descrizione + '\n' : ''}`);
       setDbVersione((x) => x + 1);
+      segnaEvento('db', 'nuova voce');
       return v;
     } catch (e) {
       scrivi(`✖ non riesco ad aggiungerlo: ${e.message.split('\n')[0]}\n`);
@@ -347,6 +374,20 @@ function App({ config, disponibili, cwd: cwdIniziale, versione }) {
         scrivi(`\n📚 Database: ${db.DIR_DB}\n  /db aggiungi percorso-o-url · /db nota testo · /db cerca parole\n  /db sposta ID categoria · /db tag ID a,b · /db titolo ID nuovo titolo · /db togli ID\n  /db github (copia privata) · /db sync · /db scarica utente-github (su una macchina nuova)\nNella richiesta: @titolo o @ID obbliga le IA a usare quella voce, @manuali tutta la categoria.\n`);
         return;
       }
+      case 'tema': {
+        if (!TEMI[arg]) { scrivi(`\nTemi: ${Object.keys(TEMI).join(', ')} — attuale: ${config.tema || 'neon'}\n`); return; }
+        config.tema = arg; applicaTema(config, C); salva(`tema ${arg}`); scrivi(`\n✔ tema ${TEMI[arg].nome}\n`); return;
+      }
+      case 'ricorda':
+        if (!arg) { scrivi('\nUso: /ricorda preferenza (vale in tutti i progetti)\n'); return; }
+        scrivi(ricorda(arg) ? `\n✔ ricorderò: ${arg}\n` : '\n· già presente\n'); segnaEvento('memoria', ''); return;
+      case 'dimentica': {
+        const via = dimentica(Number(arg));
+        scrivi(via ? `\n✔ dimenticato: ${via}\n` : '\nUso: /dimentica N (il numero lo vedi nella pagina STUDIO)\n'); return;
+      }
+      case 'memoria':
+        scrivi(`\nPreferenze: ${percorsoPreferenze()}\nRiassunto del progetto: ${path.join(cwd, '.kortex', 'riassunto.md')}\nSoluzioni: ${db.DIR_DB}/note (tag #soluzione)\nMemoria automatica: ${config.memoriaAutomatica === false ? 'spenta' : 'accesa'} (plancia CONTROLLO)\n`);
+        return;
       case 'ripristina': {
         if (!arg) { scrivi('\n' + (elencoIstantanee(cwd, 15).map((i) => `  ${i.id}  ${i.data}  ${i.etichetta}`).join('\n') || 'nessun punto di ripristino') + '\nUso: /ripristina ID\n'); return; }
         try {
@@ -457,7 +498,8 @@ function App({ config, disponibili, cwd: cwdIniziale, versione }) {
     setAllegati([]);
     scrivi(`\n› ${t}${daAllegare.length ? `   📎 ${daAllegare.length} allegat${daAllegare.length === 1 ? 'o' : 'i'}` : ''}\n`);
     const conoscenze = [...new Map([...db.menzioni(t), ...db.cerca(t, 3)].map((v) => [v.id, v])).values()].slice(0, 5);
-    if (conoscenze.length) scrivi(`📚 dal database: ${conoscenze.map((v) => v.titolo).join(' · ')}\n`);
+    if (conoscenze.length) { scrivi(`📚 dal database: ${conoscenze.map((v) => v.titolo).join(' · ')}\n`); segnaEvento('db', 'le IA leggono'); }
+    inizioLavoro.current = Date.now();
     const ctx = { config, disponibili, cwd, stato: stato.current, ui: ui.current, tel: tel.current, allegati: daAllegare, chatId: c.id, chatPrecedente: riassuntoChat({ messaggi: c.messaggi.slice(0, -1) }), conoscenze };
     let risposta = '';
     try {
@@ -480,8 +522,26 @@ function App({ config, disponibili, cwd: cwdIniziale, versione }) {
     c.messaggi.push({ chi: 'kortex', testo: risposta, ora: new Date().toISOString(), istantanea: dopo });
     salvaChat(cwd, c);
     setVersioneProgetti((x) => x + 1);
+    segnaEvento('prog', 'punto di ripristino');
     setOccupato(false);
     aggiornaFile();
+    const durata = Math.round((Date.now() - inizioLavoro.current) / 1000);
+    const riuscita = !risposta.includes('✖');
+    ui.current.notifica(`${riuscita ? '✔' : '⚠'} richiesta finita in ${durata >= 60 ? Math.floor(durata / 60) + 'm ' + (durata % 60) + 's' : durata + 's'}`, riuscita ? 'ok' : 'avviso');
+    // notifica del sistema: la vedi anche se stai lavorando in un'altra finestra
+    if (!process.env.TERMUX_VERSION) { try { spawn('notify-send', ['-a', 'KORTEX', '-i', path.join(os.homedir(), '.local/share/icons/kortex.svg'), 'KORTEX', `${riuscita ? 'Finito' : 'Finito con avvisi'}: ${t.slice(0, 80)}`], { stdio: 'ignore' }).on('error', () => {}); } catch { /* */ } }
+    // il memorista lavora in sottofondo: non blocca la prossima richiesta
+    if (config.memoriaAutomatica !== false && !modo) {
+      const ctxM = { ...contestoBase(), conoscenze: [] };
+      aggiornaMemoria(ctxM, { richiesta: t, esito: risposta, file: righeFile(cwd), progetto: prog.nome })
+        .then((f) => {
+          if (!f) return;
+          segnaEvento('memoria', '');
+          if (f.soluzione) { setDbVersione((x) => x + 1); segnaEvento('db', 'soluzione imparata'); ui.current.notifica(`📚 imparata: ${f.soluzione.titolo}`, 'info'); }
+          if (f.preferenze.length) ui.current.notifica(`★ ricorderò: ${f.preferenze[0]}`, 'info');
+        })
+        .catch(() => {});
+    }
   }
   const inviaShell = (valore) => { const t = valore.trim(); setInputShell(''); if (t) eseguiShell(t); };
 
@@ -505,6 +565,7 @@ function App({ config, disponibili, cwd: cwdIniziale, versione }) {
     const i = PAGINE.findIndex(([id]) => id === pagina);
     setPagina(PAGINE[(i + verso + PAGINE.length) % PAGINE.length][0]);
     setMessaggio('');
+    setTransizione(Date.now());
   };
   const chiaveScorri = pagina === 'lavoro' ? (fuoco === 'shell' ? 'shell' : scheda === 'registro' ? 'registro' : 'lavoro') : pagina;
   const dalBasso = ['lavoro', 'registro', 'shell'].includes(chiaveScorri);
@@ -545,7 +606,7 @@ function App({ config, disponibili, cwd: cwdIniziale, versione }) {
     if (pagina === 'controllo') {
       if (key.upArrow) return setSelezionato((x) => (x - 1 + PARAMETRI.length) % PARAMETRI.length);
       if (key.downArrow) return setSelezionato((x) => (x + 1) % PARAMETRI.length);
-      if (key.leftArrow || key.rightArrow) { cambia(config, PARAMETRI[selezionato], key.rightArrow ? 1 : -1); return salva('salvato'); }
+      if (key.leftArrow || key.rightArrow) { cambia(config, PARAMETRI[selezionato], key.rightArrow ? 1 : -1); if (PARAMETRI[selezionato].chiave === 'tema') applicaTema(config, C); return salva('salvato'); }
       if (/^[1-5]$/.test(ch)) { const m = applicaMappatura(config, Number(ch) - 1); return salva(`mappatura ${m.nome} applicata`); }
       return;
     }
@@ -600,12 +661,44 @@ function App({ config, disponibili, cwd: cwdIniziale, versione }) {
 
   let corpo;
   if (selettore) corpo = html`<${PaginaSelettore} h=${hCorpo} w=${c} elenco=${filtrati()} query=${selettore.query} sel=${selettore.sel} />`;
-  else if (pagina === 'progetti') { const d = datiProgetti(); corpo = html`<${PaginaProgetti} h=${hCorpo} w=${c} progetti=${d.progetti} selezione=${selezione} colonna=${colonna} chat=${d.chat} istantanee=${d.istantanee} progettoAttuale=${cwd} chatAttuale=${chat?.id} />`; }
-  else if (pagina === 'database') { const d = datiDb(); corpo = html`<${PaginaDatabase} h=${hCorpo} w=${c} voci=${d.voci} categoria=${dbCategoria} query=${dbQuery} sel=${dbSel} conteggi=${d.conteggi} github=${d.github} pronto=${catalogatorePronto()} />`; }
+  else if (pagina === 'progetti') { const d = datiProgetti(); corpo = html`<${PaginaProgetti} h=${hCorpo} w=${c} progetti=${d.progetti} selezione=${selezione} colonna=${colonna} chat=${d.chat} istantanee=${d.istantanee} progettoAttuale=${cwd} chatAttuale=${chat?.id} tick=${tick} ultimo=${eventi.prog} etichetta=${eventi.progTesto} />`; }
+  else if (pagina === 'database') { const d = datiDb(); corpo = html`<${PaginaDatabase} h=${hCorpo} w=${c} voci=${d.voci} categoria=${dbCategoria} query=${dbQuery} sel=${dbSel} conteggi=${d.conteggi} github=${d.github} pronto=${catalogatorePronto()} tick=${tick} ultimo=${eventi.db} etichetta=${eventi.dbTesto} />`; }
   else if (pagina === 'controllo') corpo = html`<${PaginaControllo} h=${hCorpo} w=${c} config=${config} selezionato=${selezionato} tel=${tel.current} disponibili=${disponibili} tick=${tick} messaggio=${messaggio} />`;
-  else if (pagina === 'studio') corpo = html`<${PaginaStudio} h=${hCorpo} w=${c} lavagna=${lavagna} appunti=${stato.current.appunti()} scorri=${scorri.studio} tick=${tick} massimi=${m} />`;
+  else if (pagina === 'studio') {
+    const memoria = { preferenze: preferenze(), riassunto: stato.current.riassunto(), soluzioni: db.soluzioni(6), diario: stato.current.memoria(10).split('\n').filter((r) => r.trim()), ultimo: eventi.memoria };
+    corpo = html`<${PaginaStudio} h=${hCorpo} w=${c} lavagna=${lavagna} appunti=${stato.current.appunti()} scorri=${scorri.studio} tick=${tick} massimi=${m} memoria=${memoria} />`;
+  }
   else if (pagina === 'guida') corpo = html`<${PaginaGuida} h=${hCorpo} w=${c} scorri=${scorri.guida} massimi=${m} />`;
   else corpo = html`<${PaginaLavoro} h=${hCorpo} w=${c} righe=${righe} scorri=${scheda === 'registro' ? scorri.registro : scorri.lavoro} log=${log} ruoli=${ruoli} disponibili=${disponibili} compiti=${compiti} file=${file} tick=${tick} massimi=${m} tel=${tel.current} scheda=${scheda} fuoco=${fuoco} filtro=${filtro} destinazioni=${destinazioni} dest=${dest} sessione=${sessione} scorriShell=${scorri.shell} inCorso=${shellInCorso} />`;
+
+  let progresso = 0;
+  if (occupato) {
+    const n = compiti.length;
+    if (!n) progresso = 0.06;
+    else {
+      const finiti = compiti.filter((x) => ['ok', 'avviso', 'errore'].includes(x.stato)).length;
+      const fase = ruoli.revisore.stato === 'lavoro' ? 0.85 : ruoli.esecutore.stato === 'lavoro' ? 0.5 : ruoli.pianificatore.stato === 'lavoro' ? 0.15 : 0;
+      progresso = Math.min(0.99, (finiti + (finiti < n ? fase : 0)) / n);
+    }
+  }
+  const secondiLavoro = occupato ? Math.round((Date.now() - inizioLavoro.current) / 1000) : 0;
+  const barraLavoro = () => {
+    const larg = Math.max(10, Math.min(50, c - 70));
+    const pieni = Math.round(progresso * larg);
+    const stops = config.brand.colori.map(hex);
+    const corrente = compiti.findIndex((x) => x.stato === 'lavoro');
+    const tratti = [];
+    for (let i = 0; i < pieni; i += 2) tratti.push(html`<${Text} key=${i} color=${rgbHex(campiona(stops, i / larg - tick * 0.05))}>${'█'.repeat(Math.min(2, pieni - i))}<//>`);
+    return html`<${Text} wrap="truncate-end">
+      <${Text} color=${C.rosa}>${SPIN[tick % SPIN.length]} <//>
+      ${tratti}<${Text} color=${C.scuro}>${'░'.repeat(larg - pieni)}<//>
+      <${Text} color=${C.gesso} bold> ${Math.round(progresso * 100)}%<//>
+      <${Text} color=${C.grigio}>  ${compiti.length ? `compito ${corrente >= 0 ? corrente + 1 : compiti.filter((x) => x.stato !== 'attesa').length}/${compiti.length}` : 'il direttore divide il lavoro'} · ${etichetta} · ${secondiLavoro >= 60 ? Math.floor(secondiLavoro / 60) + 'm ' + (secondiLavoro % 60) + 's' : secondiLavoro + 's'}<//>
+    <//>`;
+  };
+  const colNotifica = { ok: C.verde, avviso: C.giallo, errore: C.rosso, info: C.ciano };
+  const visibiliNotifiche = notifiche.filter((x) => Date.now() - x.t < 5000);
+  const avanzTrans = transizione ? Math.min(1, (Date.now() - transizione) / 300) : 1;
 
   const inLavoro = pagina === 'lavoro' && !selettore;
   const fuocoShell = inLavoro && fuoco === 'shell';
@@ -635,9 +728,15 @@ function App({ config, disponibili, cwd: cwdIniziale, versione }) {
             : html`<${TextInput} value=${selettore ? selettore.query : pagina === 'database' ? dbQuery : inputIA} onChange=${selettore ? (q) => setSelettore((s) => ({ ...s, query: q, sel: 0 })) : pagina === 'database' ? cambiaQueryDb : cambiaInputIA} onSubmit=${inviaIA} placeholder=${segnapostoIA} />`}
       <//>
     <//>`}
-    <${Box} height=${1} paddingX=${1}>
+    ${occupato ? html`<${Box} height=${1} paddingX=${1}>${barraLavoro()}<//>` : html`<${Box} height=${1} paddingX=${1}>
       <${Text} color=${C.ciano}>💡 <//><${Text} color=${C.grigio} wrap="truncate-end">${pagina === 'controllo' ? '↑↓ scegli il parametro · ←→ regola · 1-5 mappature · TAB pagina · ESC torna a LAVORO' : consiglio}<//>
-    <//>
+    <//>`}
+    ${visibiliNotifiche.length > 0 && html`<${Box} position="absolute" marginTop=${hTesta} marginLeft=${Math.max(0, c - 52)} flexDirection="column" width=${50}>
+      ${visibiliNotifiche.map((x, i) => html`<${Box} key=${x.t + '' + i} borderStyle="round" borderColor=${colNotifica[x.tipo] || C.ciano} paddingX=${1} width=${50}><${Text} color=${colNotifica[x.tipo] || C.ciano} bold wrap="truncate-end">${x.testo}<//><//>`)}
+    <//>`}
+    ${avanzTrans < 1 && config.animazioni !== 'spenta' && html`<${Box} position="absolute" marginTop=${hTesta} marginLeft=${Math.max(0, Math.round(avanzTrans * (c + 8)) - 8)} width=${8} height=${hCorpo} flexDirection="column">
+      ${Array.from({ length: hCorpo }, (_, y) => html`<${Text} key=${y} color=${rgbHex(campiona(config.brand.colori.map(hex), y / hCorpo + avanzTrans))}>░▒▓██▓▒░<//>`)}
+    <//>`}
   <//>`;
 }
 

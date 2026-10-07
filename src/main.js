@@ -73,6 +73,10 @@ Configurazione: ${FILE_CONFIG}`);
 
   process.on('exit', () => process.stdout.write('\x1b[?25h\x1b[?1049l'));
 
+  const { applicaTema } = await import('./temi.js');
+  const { C } = await import('./grafica.js');
+  applicaTema(config, C);
+
   const senzaAnimazione = argv.includes('--no-anim') || process.env.KORTEX_NO_ANIM;
   if (!senzaAnimazione) await splash(config.brand);
 

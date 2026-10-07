@@ -2,6 +2,7 @@ import { Box, Text } from 'ink';
 import path from 'node:path';
 import { html, C, COLORE_IA, SPIN, Pannello, Barra, Cervello, statoCervello, avvolgi, accorcia } from './grafica.js';
 import { Albero, Mappa, LineaDelTempo } from './agenti.js';
+import { EmblemaDatabase, EmblemaProgetti } from './emblemi.js';
 import { campiona, hex, rgbHex } from './splash.js';
 import { graficoAlto } from './telemetria.js';
 import { PARAMETRI, MAPPATURE, testoValore, livello } from './parametri.js';
@@ -282,11 +283,13 @@ export function PaginaControllo({ h, w, config, selezionato, tel, disponibili, t
   <//>`;
 }
 
-// ---------- STUDIO: la lavagna ----------
+// ---------- STUDIO: la lavagna e la mappa della memoria ----------
 
-const FORMULE = ['Idea = (Claude + Codex + Gemini)²', 'E = mc²  →  IA = KORTEX²', 'piano + revisione ≥ fortuna', 'Δ codice / Δ t → ∞'];
+const FORMULE = ['Idea = (Claude + Codex + Gemini)²', 'E = mc²  →  IA = KORTEX²', 'piano + revisione ≥ fortuna', 'Δ codice / Δ t → ∞', 'memoria × tempo = esperienza'];
 
-export function PaginaStudio({ h, w, lavagna, appunti, scorri, tick, massimi }) {
+export function PaginaStudio({ h, w, lavagna, appunti, scorri, tick, massimi, memoria }) {
+  const wSx = Math.max(40, Math.floor(w * 0.52));
+  const wDx = w - wSx;
   const formula = FORMULE[Math.floor(tick / 40) % FORMULE.length];
   const scritta = formula.slice(0, Math.min(formula.length, (tick % 40) * 2));
   const sezioni = [
@@ -296,7 +299,7 @@ export function PaginaStudio({ h, w, lavagna, appunti, scorri, tick, massimi }) 
     ['IL VERDETTO DEL REVISORE', lavagna.revisione],
     ['APPUNTI', appunti.length ? appunti.join('\n') : 'nessun appunto: scrivi /nota seguito dal testo'],
   ];
-  const larg = Math.max(20, w - 8);
+  const larg = Math.max(20, wSx - 6);
   const righe = [];
   for (const [titolo, testo] of sezioni) {
     righe.push({ t: `✎ ${titolo}`, titolo: true });
@@ -306,9 +309,30 @@ export function PaginaStudio({ h, w, lavagna, appunti, scorri, tick, massimi }) 
   const spazio = Math.max(1, h - 4);
   massimi.studio = Math.max(0, righe.length - spazio);
   const inizio = Math.min(scorri, massimi.studio);
-  return html`<${Pannello} titolo="LAVAGNA" nota=${righe.length > spazio ? `↑↓ scorri  (${inizio + 1}-${Math.min(righe.length, inizio + spazio)} di ${righe.length})` : ''} colore=${C.lavagna} coloreTitolo=${C.gesso} height=${h}>
-    <${Text} color=${C.gesso} italic>  ${scritta}${scritta.length < formula.length ? '▌' : ''}<//>
-    ${righe.slice(inizio, inizio + spazio).map((r, i) => html`<${Text} key=${i} wrap="truncate-end" color=${r.titolo ? C.giallo : C.gesso} bold=${!!r.titolo}>${r.t || ' '}<//>`)}
+
+  // la mappa della memoria: quello che KORTEX sa, dal più generale al più specifico
+  const lm = Math.max(16, wDx - 6);
+  const blocchi = [
+    ['PREFERENZE · valgono in tutti i progetti', memoria.preferenze.length ? memoria.preferenze.map((p, i) => `${i + 1}. ${p}`) : ['nessuna: /ricorda testo per aggiungerne una'], C.giallo],
+    ['RIASSUNTO DEL PROGETTO', memoria.riassunto ? memoria.riassunto.split('\n') : ['ancora nessuno: lo scrive il memorista dopo la prima richiesta'], C.ciano],
+    ['SOLUZIONI IMPARATE · nel database', memoria.soluzioni.length ? memoria.soluzioni.map((v) => `• ${v.titolo}`) : ['nessuna ancora'], C.verde],
+    ['DIARIO', memoria.diario.length ? memoria.diario : ['vuoto'], C.grigio],
+  ];
+  const righeM = [];
+  for (const [titolo, testo, col] of blocchi) {
+    righeM.push({ t: `◆ ${titolo}`, col, titolo: true });
+    for (const r of avvolgi(testo, lm)) righeM.push({ t: '  ' + r, col: C.gesso });
+    righeM.push({ t: '' });
+  }
+  const aggiornata = memoria.ultimo && Date.now() - memoria.ultimo < 4500;
+  return html`<${Box} height=${h}>
+    <${Pannello} titolo="LAVAGNA" nota=${righe.length > spazio ? `↑↓ scorri  (${inizio + 1}-${Math.min(righe.length, inizio + spazio)} di ${righe.length})` : ''} colore=${C.lavagna} coloreTitolo=${C.gesso} width=${wSx} height=${h} flexShrink=${0}>
+      <${Text} color=${C.gesso} italic>  ${scritta}${scritta.length < formula.length ? '▌' : ''}<//>
+      ${righe.slice(inizio, inizio + spazio).map((r, i) => html`<${Text} key=${i} wrap="truncate-end" color=${r.titolo ? C.giallo : C.gesso} bold=${!!r.titolo}>${r.t || ' '}<//>`)}
+    <//>
+    <${Pannello} titolo="MAPPA DELLA MEMORIA" nota=${aggiornata ? '● aggiornata adesso' : '/ricorda · /dimentica N · /memoria'} colore=${aggiornata ? C.rosa : C.viola} flexGrow=${1} height=${h}>
+      ${righeM.slice(0, h - 3).map((r, i) => html`<${Text} key=${i} wrap="truncate-end" color=${r.col || C.gesso} bold=${!!r.titolo}>${r.t || ' '}<//>`)}
+    <//>
   <//>`;
 }
 
@@ -331,7 +355,7 @@ export function PaginaGuida({ h, w, scorri, massimi }) {
 
 // ---------- PROGETTI: i tuoi progetti, le loro chat, i punti di ripristino ----------
 
-export function PaginaProgetti({ h, w, progetti, selezione, colonna, chat, istantanee, progettoAttuale, chatAttuale }) {
+export function PaginaProgetti({ h, w, progetti, selezione, colonna, chat, istantanee, progettoAttuale, chatAttuale, tick, ultimo, etichetta }) {
   const wSx = Math.min(56, Math.floor(w * 0.4));
   const quando = (iso) => (iso ? iso.slice(0, 16).replace('T', ' ') : '');
   const p = progetti[selezione.progetto];
@@ -341,7 +365,7 @@ export function PaginaProgetti({ h, w, progetti, selezione, colonna, chat, istan
   return html`<${Box} height=${h}>
     <${Pannello} titolo="PROGETTI" nota=${`${progetti.length} · INVIO apre · scrivi un nome e INVIO per crearne uno`} colore=${colonna === 'progetti' ? C.rosa : C.viola} width=${wSx} height=${h} flexShrink=${0}>
       ${progetti.length === 0 ? html`<${Text} color=${C.grigio}>nessun progetto: scrivi un nome qui sotto e premi INVIO, oppure /progetto importa percorso<//>` : null}
-      ${progetti.slice(0, h - 3).map((q, i) => {
+      ${progetti.slice(0, Math.max(1, Math.floor((h - (h >= 22 ? 10 : 3)) / 2))).map((q, i) => {
         const sel = i === selezione.progetto;
         const aperto = q.percorso === progettoAttuale;
         return html`<${Box} key=${q.percorso} flexDirection="column">
@@ -349,6 +373,8 @@ export function PaginaProgetti({ h, w, progetti, selezione, colonna, chat, istan
           <${Text} color=${C.grigio} wrap="truncate-end">    ${q.descrizione || accorcia(q.percorso, wSx - 8)}<//>
         <//>`;
       })}
+      <${Box} flexGrow=${1} />
+      ${h >= 22 ? html`<${EmblemaProgetti} tick=${tick} ultimo=${ultimo} quanti=${progetti.length} etichetta=${etichetta} />` : null}
     <//>
     <${Box} flexDirection="column" flexGrow=${1}>
       <${Pannello} titolo=${p ? 'CHAT DI ' + p.nome.toUpperCase() : 'CHAT'} nota=${chat.length ? `${chat.length} · INVIO apre · /chat nuova per iniziarne una` : ''} colore=${colonna === 'chat' ? C.rosa : C.viola} height=${spazioChat + 3} flexShrink=${0}>
@@ -373,7 +399,7 @@ export function PaginaProgetti({ h, w, progetti, selezione, colonna, chat, istan
 import { CATEGORIE, percorsoAssoluto } from './database.js';
 const COLORE_CAT = { manuali: '#FFB84D', codice: '#3DDC97', documenti: '#4D9FFF', immagini: '#FF6EC7', note: '#FFE66D', archivio: '#9A9AB0' };
 
-export function PaginaDatabase({ h, w, voci, categoria, query, sel, conteggi, github, pronto }) {
+export function PaginaDatabase({ h, w, voci, categoria, query, sel, conteggi, github, pronto, tick, ultimo, etichetta }) {
   const wSx = 24;
   const wDx = Math.min(70, Math.floor(w * 0.38));
   const quando = (iso) => (iso ? iso.slice(0, 10) : '');
@@ -389,6 +415,8 @@ export function PaginaDatabase({ h, w, voci, categoria, query, sel, conteggi, gi
       <${Text} color=${github ? C.verde : C.grigio} wrap="truncate-end">${github ? '● collegato' : '○ no: /db github'}<//>
       <${Text}> <//>
       <${Text} color=${C.grigio} wrap="truncate-end">${pronto ? 'catalogatore pronto' : 'catalogatore: nessuna IA'}<//>
+      <${Box} flexGrow=${1} />
+      ${h >= 22 ? html`<${EmblemaDatabase} tick=${tick} ultimo=${ultimo} etichetta=${etichetta} />` : null}
     <//>
     <${Pannello} titolo=${categoria === 'tutte' ? 'TUTTE LE VOCI' : categoria.toUpperCase()} nota=${`${voci.length}${query ? ` · cerco "${query}"` : ''} · ↑↓ scegli · scrivi per cercare · trascina un file per aggiungerlo`} flexGrow=${1} height=${h}>
       ${voci.length === 0 ? html`<${Text} color=${C.grigio}>${query ? 'niente corrisponde' : 'vuoto: trascina qui un file, oppure /db nota testo, /db aggiungi percorso-o-url'}<//>` : null}

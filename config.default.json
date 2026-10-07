@@ -16,6 +16,8 @@
   "revisoreIndipendente": true,
   "memoriaRighe": 30,
   "animazioni": "piena",
+  "tema": "neon",
+  "memoriaAutomatica": true,
   "timeoutSecondi": 900,
   "maxCorrezioni": 1,
   "ruoli": {
@@ -42,6 +44,12 @@
       "ollama"
     ],
     "catalogatore": [
+      "gemini",
+      "claude",
+      "codex",
+      "ollama"
+    ],
+    "memorista": [
       "gemini",
       "claude",
       "codex",

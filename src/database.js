@@ -247,3 +247,15 @@ export function scaricaDaGithub(utente) {
   execFileSync('git', ['clone', '-q', `https://github.com/${utente}/kortex-database.git`, DIR_DB], { encoding: 'utf8', timeout: 120000 });
   return 'scaricato';
 }
+
+// Una soluzione trovata lavorando: la scrive il memorista, senza bisogno del catalogatore.
+export async function aggiungiSoluzione({ titolo, testo, tag = [], progetto = '' }) {
+  prepara();
+  const nome = `soluzione-${titolo.toLowerCase().replace(/[^\w àèéìòù-]/g, '').replace(/\s+/g, '-').slice(0, 50)}-${Date.now().toString(36)}.md`;
+  const dest = path.join(DIR_DB, 'note', nome);
+  fs.writeFileSync(dest, `# ${titolo}\n\n${testo}\n\n_imparata lavorando su: ${progetto || 'un progetto'}_\n`);
+  const voce = await aggiungiFile(dest, null, { categoria: 'note', titolo });
+  return aggiornaVoce(voce.id, { tag: [...new Set(['soluzione', ...tag.map(String)])].slice(0, 8), descrizione: testo.split('\n')[0].slice(0, 200), progetto });
+}
+
+export const soluzioni = (quante = 8) => indice().filter((v) => v.tag.includes('soluzione')).slice(0, quante);

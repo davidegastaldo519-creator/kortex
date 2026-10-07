@@ -1,7 +1,8 @@
 import { eseguiIA } from './adapters.js';
 import fs from 'node:fs';
 import { diffProgetto } from './state.js';
-import { DIR_DB, bloccoConoscenze } from './database.js';
+import { DIR_DB, bloccoConoscenze, aggiungiSoluzione } from './database.js';
+import { bloccoPreferenze, ricorda } from './memoria.js';
 
 // ---------- scelta dell'IA per un ruolo, con riserva automatica ----------
 
@@ -65,7 +66,7 @@ export async function eseguiRuolo(ruolo, prompt, ctx, opz = {}) {
 const bloccoAllegati = (ctx) =>
   (ctx.allegati?.length
     ? `\nFILE ALLEGATI DALL'UTENTE (dentro la cartella del progetto: leggili o guardali se servono al compito):\n${ctx.allegati.map((a) => '- ' + a).join('\n')}\n`
-    : '') + bloccoConoscenze(ctx.conoscenze);
+    : '') + bloccoConoscenze(ctx.conoscenze) + bloccoPreferenze();
 
 function esecutoriDisponibili(ctx) {
   return candidati('esecutore', ctx)
@@ -75,8 +76,11 @@ function esecutoriDisponibili(ctx) {
 
 const promptDirettore = (richiesta, ctx) => `Sei il DIRETTORE di un gruppo di IA che lavora nella cartella di progetto: ${ctx.cwd}
 
-Memoria del progetto (ultime voci del diario):
-${ctx.stato.memoria(ctx.config.memoriaRighe || 30) || '(progetto nuovo, nessuna memoria)'}
+Riassunto del progetto (aggiornato dal memorista):
+${ctx.stato.riassunto() || '(ancora nessun riassunto)'}
+
+Ultime voci del diario:
+${ctx.stato.memoria(Math.min(15, ctx.config.memoriaRighe || 30)) || '(progetto nuovo)'}
 
 Esecutori disponibili e loro punti forti:
 ${esecutoriDisponibili(ctx) || '(nessuno)'}
@@ -202,7 +206,12 @@ export async function eseguiRichiesta({ richiesta, ctx }) {
   compiti = compiti.slice(0, config.maxCompiti || 5);
   compiti.forEach((c, i) => ui.out(`  ${i + 1}. ${c.titolo}  [${c.tipo}${c.esecutore ? ' → ' + c.esecutore : ''}]\n`));
   const statoCompiti = compiti.map((c) => ({ titolo: c.titolo, stato: 'attesa' }));
-  const segna = (i, stato) => { statoCompiti[i].stato = stato; ui.compiti?.([...statoCompiti]); ctx.tel?.compiti(statoCompiti); };
+  const segna = (i, stato) => {
+    statoCompiti[i].stato = stato;
+    ui.compiti?.([...statoCompiti]);
+    ctx.tel?.compiti(statoCompiti);
+    if (stato !== 'lavoro') ui.notifica?.(`${stato === 'ok' ? '✔' : stato === 'errore' ? '✖' : '⚠'} ${i + 1}. ${statoCompiti[i].titolo}`, stato);
+  };
   ui.compiti?.([...statoCompiti]);
   ui.pensiero?.('compiti', compiti.map((c, i) => `${i + 1}. ${c.titolo}${c.esecutore ? '  → ' + c.esecutore : ''}\n   ${c.descrizione}`).join('\n'));
 
@@ -344,4 +353,44 @@ Rispondi SOLO con JSON valido, senza testo prima o dopo:
   const m = (r.testo || '').match(/\{[\s\S]*\}/);
   if (!m) return null;
   try { return JSON.parse(m[0]); } catch { return null; }
+}
+
+
+// ---------- il memorista: aggiorna la memoria dopo ogni richiesta ----------
+export async function aggiornaMemoria(ctx, { richiesta, esito, file, progetto }) {
+  const prompt = `Sei il MEMORISTA del progetto "${progetto}". Aggiorni la memoria dopo ogni richiesta.
+
+RIASSUNTO ATTUALE DEL PROGETTO:
+${ctx.stato.riassunto() || '(nessuno: è il primo)'}
+
+ULTIMA RICHIESTA DELL'UTENTE:
+${richiesta}
+
+ESITO:
+${String(esito).slice(0, 2500)}
+
+FILE CAMBIATI:
+${(file || []).slice(0, 30).join('\n') || '(nessuno)'}
+
+Compiti:
+1. Riscrivi il riassunto del progetto tenendo conto di quello che è appena successo: cos'è il progetto, come è fatto (file principali), decisioni prese, cosa resta da fare. Massimo 20 righe brevi, in italiano.
+2. Se in questo lavoro è emersa una SOLUZIONE riutilizzabile in altri progetti (un trucco tecnico, la correzione di un errore, un procedimento), descrivila in modo autonomo e comprensibile. Altrimenti null. Niente cose banali o valide solo qui.
+3. Se l'utente nella richiesta ha espresso ESPLICITAMENTE una preferenza su come vuole che si lavori (lingua, stile, cose da evitare), riportala in una frase. Altrimenti lista vuota. Non inventare.
+
+Rispondi SOLO con JSON valido, senza testo prima o dopo:
+{"riassunto":"...","soluzione":null,"preferenze":[]}
+oppure con soluzione: {"titolo":"...","testo":"...","tag":["..."]}`;
+  const r = await eseguiRuolo('memorista', prompt, ctx, { modalita: 'lettura', mostra: false });
+  if (!r.ok) return null;
+  const m = (r.testo || '').match(/\{[\s\S]*\}/);
+  if (!m) return null;
+  let j;
+  try { j = JSON.parse(m[0]); } catch { return null; }
+  const fatto = { riassunto: false, soluzione: null, preferenze: [] };
+  if (typeof j.riassunto === 'string' && j.riassunto.trim()) { ctx.stato.salvaRiassunto(j.riassunto); fatto.riassunto = true; }
+  if (j.soluzione?.titolo && j.soluzione?.testo) {
+    try { fatto.soluzione = await aggiungiSoluzione({ ...j.soluzione, tag: j.soluzione.tag || [], progetto }); } catch { /* */ }
+  }
+  for (const p of Array.isArray(j.preferenze) ? j.preferenze.slice(0, 3) : []) if (typeof p === 'string' && ricorda(p)) fatto.preferenze.push(p);
+  return fatto;
 }
