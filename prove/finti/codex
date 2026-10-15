@@ -1,0 +1,23 @@
+#!/usr/bin/env python3
+# Un finto Codex per le prove: testo semplice.
+import sys, time, random, re, subprocess
+args = sys.argv[1:]
+if '--version' in args:
+    print('codex-cli 0.45.0'); sys.exit(0)
+prompt = args[-1] if args else ''
+time.sleep(0.5 + random.random() * 0.8)
+if "Sei l'ESECUTORE" in prompt:
+    m = re.search(r'file (\S+\.txt)', prompt); nome = m.group(1) if m else 'file.txt'
+    time.sleep(0.6)
+    open(nome, 'w').write('ciao da codex\n')
+    print(f'Ho creato {nome}.')
+elif 'Sei il REVISORE' in prompt:
+    print('ESITO: OK\n- verificato')
+elif "Sei l'OPERATORE" in prompt:
+    m = re.search(r'Esegui: (.+?) e riferisci', prompt); cmd = m.group(1) if m else 'ls'
+    out = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+    print(f'Lanciato {cmd}: {out.stdout}')
+elif 'Sei il PIANIFICATORE' in prompt:
+    print('1. fai\n2. controlla')
+else:
+    print('OK')

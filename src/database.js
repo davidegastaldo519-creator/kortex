@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, execFile, spawn } from 'node:child_process';
 
 export const DIR_DB = path.join(os.homedir(), 'kortex-database');
 const FILE_INDICE = path.join(DIR_DB, 'indice.json');
@@ -20,6 +20,10 @@ export function prepara() {
   if (!fs.existsSync(FILE_INDICE)) fs.writeFileSync(FILE_INDICE, '[]');
   if (!fs.existsSync(path.join(DIR_DB, '.gitignore'))) fs.writeFileSync(path.join(DIR_DB, '.gitignore'), '.DS_Store\n*.tmp\n');
 }
+
+// I file del database che non sono voci: indice, readme, preferenze, cestino, git.
+const NON_VOCE = /(^|\/)(indice\.json|README\.md|preferenze\.md|\.gitignore|\.git(\/|$)|\.cestino(\/|$)|\.[^/]*\.sw.|.*\.tmp|.*~)$/;
+const nonVoce = (rel) => NON_VOCE.test(rel) || rel.split('/').some((p) => p.startsWith('.'));
 
 export function indice() {
   try { return JSON.parse(fs.readFileSync(FILE_INDICE, 'utf8')); } catch { return []; }
@@ -259,3 +263,109 @@ export async function aggiungiSoluzione({ titolo, testo, tag = [], progetto = ''
 }
 
 export const soluzioni = (quante = 8) => indice().filter((v) => v.tag.includes('soluzione')).slice(0, quante);
+
+// ---------- il guardiano: i file che compaiono nel database vengono catalogati da soli ----------
+
+// I file dentro le categorie che non sono ancora nell'indice (scritti dalle IA, copiati a mano, arrivati da GitHub).
+export function orfani() {
+  prepara();
+  const noti = new Set(indice().map((v) => v.percorso));
+  const out = [];
+  for (const c of CATEGORIE) {
+    let voci;
+    try { voci = fs.readdirSync(path.join(DIR_DB, c), { withFileTypes: true }); } catch { continue; }
+    for (const v of voci) {
+      if (!v.isFile() || v.name.startsWith('.')) continue;
+      const rel = `${c}/${v.name}`;
+      if (!noti.has(rel) && !nonVoce(rel)) out.push(path.join(DIR_DB, rel));
+    }
+  }
+  return out;
+}
+
+// Cataloga un file già dentro il database (non lo copia: è già al suo posto).
+export async function adotta(percorso, catalogatore) {
+  const rel = path.relative(DIR_DB, percorso);
+  const categoria = rel.split('/')[0];
+  const v = await aggiungiFile(percorso, catalogatore, CATEGORIE.includes(categoria) ? { categoria } : {});
+  return aggiornaVoce(v.id, { catalogatoDa: v.catalogatoDa === 'ia' ? 'ia' : 'guardiano' });
+}
+
+// Scansione all'avvio: adotta gli orfani uno alla volta, in sottofondo. onVoce(voce) per ognuno.
+// Per non consumare l'abbonamento, solo i primi `conIA` file passano dal catalogatore: gli altri
+// prendono una scheda automatica (si può rifare con /db scansiona quando si vuole).
+export async function scansiona(catalogatore, onVoce, { conIA = 6 } = {}) {
+  const lista = orfani();
+  const fatte = [];
+  for (const [i, f] of lista.entries()) {
+    try { const v = await adotta(f, i < conIA ? catalogatore : null); fatte.push(v); onVoce?.(v); } catch { /* file sparito o illeggibile */ }
+  }
+  return fatte;
+}
+
+// Sorveglia la cartella: un file nuovo o cambiato viene catalogato pochi secondi dopo.
+// Restituisce una funzione per fermare il guardiano. Usa fs.watch ricorsivo dove c'è (Linux), altrimenti una cartella per categoria.
+export function sorveglia({ catalogatore, onVoce, onErrore }) {
+  prepara();
+  const inAttesa = new Map();
+  let fermo = false;
+  const tocca = (rel) => {
+    if (!rel || nonVoce(rel)) return;
+    const categoria = rel.split('/')[0];
+    if (!CATEGORIE.includes(categoria) || rel.split('/').length !== 2) return;
+    clearTimeout(inAttesa.get(rel));
+    inAttesa.set(rel, setTimeout(async () => {
+      inAttesa.delete(rel);
+      if (fermo) return;
+      const pieno = path.join(DIR_DB, rel);
+      try {
+        if (!fs.existsSync(pieno) || !fs.statSync(pieno).isFile()) return;
+        if (indice().some((v) => v.percorso === rel)) return;
+        const v = await adotta(pieno, catalogatore);
+        onVoce?.(v);
+      } catch (e) { onErrore?.(e); }
+    }, 3000));
+  };
+  const osservatori = [];
+  try {
+    osservatori.push(fs.watch(DIR_DB, { recursive: true }, (_, nome) => tocca(nome && String(nome))));
+  } catch {
+    for (const c of CATEGORIE) {
+      try { osservatori.push(fs.watch(path.join(DIR_DB, c), (_, nome) => tocca(nome && `${c}/${nome}`))); } catch { /* */ }
+    }
+  }
+  for (const o of osservatori) o.on('error', (e) => onErrore?.(e));
+  return () => { fermo = true; for (const o of osservatori) { try { o.close(); } catch { /* */ } } for (const t of inAttesa.values()) clearTimeout(t); };
+}
+
+// ---------- sincronizzazione in sottofondo: non blocca mai l'interfaccia ----------
+
+const gitAsync = (args) => new Promise((ok) => execFile('git', args, { cwd: DIR_DB, encoding: 'utf8', timeout: 120000 }, (err, stdout, stderr) => ok({ ok: !err, out: (stdout || '') + (stderr || '') })));
+
+let sincroInCorso = null;
+// Salva, scarica le novità, carica: tutto senza bloccare. Risolve con un testo per l'utente.
+export function sincronizzaAsync() {
+  if (sincroInCorso) return sincroInCorso;
+  sincroInCorso = (async () => {
+    if (!statoGithub()) return null;
+    await gitAsync(['add', '-A']);
+    await gitAsync(['commit', '-q', '-m', `aggiornamento ${new Date().toISOString().slice(0, 16)}`]);
+    const pull = await gitAsync(['pull', '-q', '--rebase', 'origin', 'main']);
+    if (!pull.ok && /conflict/i.test(pull.out)) { await gitAsync(['rebase', '--abort']); return 'conflitto: /db sync a mano'; }
+    const push = await gitAsync(['push', '-q', 'origin', 'main']);
+    if (!push.ok) return 'push non riuscito (rete?)';
+    const ultimo = await gitAsync(['log', '-1', '--format=%h %s']);
+    return ultimo.out.trim();
+  })().finally(() => { sincroInCorso = null; });
+  return sincroInCorso;
+}
+
+// All'uscita: un processo staccato che finisce da solo anche se KORTEX è già chiuso.
+export function sincronizzaStaccato() {
+  if (!statoGithub()) return false;
+  try {
+    const p = spawn('sh', ['-c', 'git add -A && (git commit -q -m "aggiornamento all\'uscita" || true) && (git pull -q --rebase origin main || true) && git push -q origin main'], { cwd: DIR_DB, stdio: 'ignore', detached: true });
+    p.unref();
+    return true;
+  } catch { return false; }
+}

@@ -33,7 +33,8 @@ Uso:
   kortex              apre l'interfaccia nella cartella corrente
   kortex --check      mostra quali IA sono installate su questa macchina
   kortex --prova      fa una domanda vera a ogni IA e dice cosa non va
-  kortex --no-anim    salta il logo animato
+  kortex --no-anim    salta la schermata iniziale
+  kortex --leggera    grafica leggera per questa volta (niente 3D, niente neuroni)
   kortex --aggiorna   scarica l'ultima versione da GitHub
   kortex --versione   versione
 
@@ -41,7 +42,7 @@ Configurazione: ${FILE_CONFIG}`);
     return;
   }
 
-  // Il rilevamento delle IA parte subito, in parallelo al logo: nessun tempo perso.
+  // Il rilevamento delle IA parte subito, in parallelo alla schermata iniziale: nessun tempo perso.
   const rilevamento = rileva(config);
 
   if (argv.includes('--prova')) {
@@ -62,7 +63,7 @@ Configurazione: ${FILE_CONFIG}`);
       const modelli = x.modelli?.length ? `  (modelli: ${x.modelli.join(', ')})` : '';
       console.log(`  ${segno} ${x.nome.padEnd(8)} ${info || ''}${modelli}`);
     }
-    console.log(`\nAutonomia: ${config.autonomia}   Configurazione: ${FILE_CONFIG}\n`);
+    console.log(`\nAutonomia: ${config.autonomia}   Parallelo: ${config.parallelo}   Configurazione: ${FILE_CONFIG}\n`);
     return;
   }
 
@@ -71,16 +72,32 @@ Configurazione: ${FILE_CONFIG}`);
     process.exit(1);
   }
 
-  process.on('exit', () => process.stdout.write('\x1b[?25h\x1b[?1049l'));
+  // qualunque cosa succeda, il terminale torna normale: cursore, schermo, mouse
+  process.on('exit', () => process.stdout.write('\x1b[?1006l\x1b[?1000l\x1b[0m\x1b[?25h\x1b[?1049l'));
 
   const { applicaTema } = await import('./temi.js');
   const { C } = await import('./grafica.js');
+  const { applicaGrafica } = await import('./parametri.js');
+  const { creaSuoni } = await import('./suoni.js');
+  const { migraPreferenze, preferenze } = await import('./memoria.js');
   applicaTema(config, C);
+  if (argv.includes('--leggera')) config.animazioni = 'leggera'; else applicaGrafica(config);
+  const suoni = creaSuoni(config);
+  try { migraPreferenze(); } catch { /* */ }
 
+  // l'interfaccia si carica mentre scorre la schermata iniziale: all'uscita è già pronta
+  const caricamentoUI = import('./ui.js');
   const senzaAnimazione = argv.includes('--no-anim') || process.env.KORTEX_NO_ANIM;
-  if (!senzaAnimazione) await splash(config.brand);
+  if (!senzaAnimazione) {
+    const db = await import('./database.js');
+    const { elencoProgetti } = await import('./progetti.js');
+    const info = () => {
+      try { return { database: db.indice().length, preferenze: preferenze().length, progetti: elencoProgetti().length }; } catch { return {}; }
+    };
+    await splash(config.brand, { tema: config.tema, rilevamento, suoni, leggera: config.animazioni !== 'piena', info, versione: versione() });
+  }
 
   const disponibili = await rilevamento;
-  const { avviaUI } = await import('./ui.js');
-  await avviaUI({ config, disponibili, cwd: process.cwd(), versione: versione() });
+  const { avviaUI } = await caricamentoUI;
+  await avviaUI({ config, disponibili, cwd: process.cwd(), versione: versione(), suoni });
 }

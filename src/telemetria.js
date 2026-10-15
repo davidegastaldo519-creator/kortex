@@ -21,7 +21,7 @@ export class Telemetria {
     this.contatore = 0;
     this.precedente = campioneCpu();
     this.ia = Object.fromEntries(
-      idIA.map((id) => [id, { chiamate: 0, ok: 0, errori: 0, secondi: 0, valore: 0, ultima: null, attivo: null }])
+      idIA.map((id) => [id, { chiamate: 0, ok: 0, errori: 0, secondi: 0, valore: 0, ultima: null, attivo: null, inCorso: 0 }])
     );
     this.chiamate = []; // ogni chiamata a un'IA: serve per albero, mappa e linea del tempo
     this.richiesta = null;
@@ -34,11 +34,13 @@ export class Telemetria {
   }
 
   compiti(lista) {
-    if (this.richiesta) this.richiesta.compiti = lista.map((c) => ({ titolo: c.titolo, stato: c.stato }));
+    if (this.richiesta) this.richiesta.compiti = lista.map((c) => ({ titolo: c.titolo, stato: c.stato, dipende: c.dipende || [] }));
   }
 
-  strumento(id, nome) {
-    const c = [...this.chiamate].reverse().find((x) => x.ia === id && !x.fine);
+  strumento(id, nome, compito = null) {
+    // con più chiamate aperte sulla stessa IA (compiti in parallelo) conta anche il compito
+    const aperte = this.chiamate.filter((x) => x.ia === id && !x.fine);
+    const c = aperte.find((x) => x.compito === compito) || aperte[aperte.length - 1];
     if (c) c.strumenti.push(nome);
   }
 
@@ -64,11 +66,12 @@ export class Telemetria {
     if (!s) return () => {};
     s.chiamate++;
     s.attivo = ruolo;
+    s.inCorso++;
     const t0 = Date.now();
     const voce = { ia: id, ruolo, compito, richiesta: this.nRichiesta, inizio: t0, fine: null, ok: null, limitato: false, strumenti: [] };
     this.chiamate = [...this.chiamate, voce].slice(-500);
     return ({ ok, costo, limitato }) => {
-      s.attivo = null;
+      if (--s.inCorso <= 0) { s.inCorso = 0; s.attivo = null; }
       s.secondi += (Date.now() - t0) / 1000;
       s.ultima = (Date.now() - t0) / 1000;
       if (ok) s.ok++; else s.errori++;

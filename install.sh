@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Installa KORTEX su questa macchina: PC Linux (Lubuntu, Ubuntu) o Termux (telefono, tablet).
-# Si può rilanciare quante volte vuoi: non rompe niente.
+# Installa KORTEX su questa macchina: PC Linux (Lubuntu/Openbox, Ubuntu/GNOME) o Termux (telefono, tablet).
+# Si può rilanciare quante volte vuoi: non rompe niente e non tocca le scorciatoie che hai già.
 set -e
 cd "$(dirname "$0")"
 QUI="$(pwd)"
@@ -56,12 +56,16 @@ if [ "$MACCHINA" = "Linux" ]; then
   echo "== Lanciatore e icona =="
   mkdir -p "$HOME/progetti" "$HOME/.local/share/icons" "$HOME/.local/share/applications"
 
-  # Apre KORTEX a schermo intero nella cartella ~/progetti e, all'uscita, lascia il terminale aperto lì.
+  # Il desktop: Wayland (GNOME nuovo) o X11 (Lubuntu/Openbox). Su Wayland wmctrl non serve e non va suggerito.
+  WAYLAND=""
+  [ -n "$WAYLAND_DISPLAY" ] || [ "$XDG_SESSION_TYPE" = "wayland" ] && WAYLAND="1"
+
+  # Apre KORTEX nella cartella ~/progetti e, all'uscita, lascia il terminale aperto lì.
+  # Su X11 prova a massimizzare la finestra; su Wayland ci pensa il terminale (ptyxis --maximize).
   cat > "$DEST/kortex-avvia" << EOF
 #!/usr/bin/env bash
 cd "\$HOME/progetti"
-# Si apre grande (massimizzata) ma resta una finestra vera: la stringi, la sposti, la affianchi ad altre.
-if [ -n "\$DISPLAY" ]; then
+if [ -n "\$DISPLAY" ] && [ -z "\$WAYLAND_DISPLAY" ]; then
   sleep 0.3
   if command -v wmctrl > /dev/null; then wmctrl -r :ACTIVE: -b remove,fullscreen; wmctrl -r :ACTIVE: -b add,maximized_vert,maximized_horz
   elif command -v xdotool > /dev/null; then xdotool getactivewindow windowsize 100% 100%; fi
@@ -70,23 +74,26 @@ fi
 exec bash
 EOF
   chmod +x "$DEST/kortex-avvia"
-  if ! command -v wmctrl > /dev/null && ! command -v xdotool > /dev/null; then
+  if [ -z "$WAYLAND" ] && ! command -v wmctrl > /dev/null && ! command -v xdotool > /dev/null; then
     echo "Per aprire KORTEX grande serve wmctrl:  sudo apt install -y wmctrl"
   fi
 
   cp "$QUI/assets/kortex.svg" "$HOME/.local/share/icons/kortex.svg"
 
-  # Ogni desktop ha il suo terminale: Lubuntu qterminal, Ubuntu gnome-terminal.
-  if command -v qterminal > /dev/null; then TERM_CMD="qterminal -e"
-  elif command -v gnome-terminal > /dev/null; then TERM_CMD="gnome-terminal --"
+  # Ogni desktop ha il suo terminale. Ptyxis (Ubuntu 24.10+/GNOME) per primo: con --maximize apre la finestra grande.
+  if command -v ptyxis > /dev/null; then TERM_CMD="ptyxis --new-window --maximize -x"
+  elif command -v qterminal > /dev/null; then TERM_CMD="qterminal -e"
+  elif command -v gnome-terminal > /dev/null; then TERM_CMD="gnome-terminal --maximize --"
   elif command -v konsole > /dev/null; then TERM_CMD="konsole -e"
+  elif command -v kgx > /dev/null; then TERM_CMD="kgx -e"
   else TERM_CMD="x-terminal-emulator -e"; fi
 
   printf '[Desktop Entry]\nType=Application\nName=KORTEX\nComment=La corteccia delle tue IA\nExec=%s %s/kortex-avvia\nIcon=%s/.local/share/icons/kortex.svg\nTerminal=false\nCategories=Development;\n' \
     "$TERM_CMD" "$DEST" "$HOME" > "$HOME/.local/share/applications/kortex.desktop"
-  echo "Icona KORTEX aggiunta al menu (categoria Sviluppo)"
+  command -v update-desktop-database > /dev/null && update-desktop-database "$HOME/.local/share/applications" 2> /dev/null || true
+  echo "Icona KORTEX aggiunta al menu (categoria Sviluppo), terminale: ${TERM_CMD%% *}"
 
-  # Scorciatoia Ctrl+Alt+K: solo su Openbox (Lubuntu), una volta sola, con copia di sicurezza.
+  # Scorciatoia Ctrl+Alt+K su Openbox (Lubuntu): una volta sola, con copia di sicurezza.
   # (Super+K non va: su Lubuntu il tasto Windows lo prende il menu di LXQt.)
   if pgrep -x openbox > /dev/null; then
     CFG=$(ps -o args= -C openbox | grep -o -- '--config-file [^ ]*' | cut -d' ' -f2)
@@ -112,14 +119,34 @@ EOF
       echo "Finestre affiancate: Ctrl+Alt+Shift + frecce (metà schermo), Ctrl+Alt+Shift+INVIO (massimizza)"
     fi
   fi
+
+  # Scorciatoia Ctrl+Alt+K su GNOME (Ubuntu): una scorciatoia personalizzata, aggiunta IN CODA alle tue
+  # senza toccarle, e solo se non c'è già (anche fatta a mano con lo stesso nome "kortex").
+  if command -v gsettings > /dev/null && [ "$XDG_CURRENT_DESKTOP" != "" ] && echo "$XDG_CURRENT_DESKTOP" | grep -qi gnome; then
+    SCHEMA="org.gnome.settings-daemon.plugins.media-keys"
+    BASE="/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings"
+    MIA="$BASE/kortex/"
+    LISTA=$(gsettings get "$SCHEMA" custom-keybindings 2> /dev/null || echo "@as []")
+    if echo "$LISTA" | grep -q "kortex"; then
+      echo "Scorciatoia GNOME già presente: non la tocco"
+    else
+      if echo "$LISTA" | grep -q "@as \[\]\|^\[\]$"; then NUOVA="['$MIA']"
+      else NUOVA=$(echo "$LISTA" | sed "s|\]$|, '$MIA']|"); fi
+      gsettings set "$SCHEMA" custom-keybindings "$NUOVA"
+      gsettings set "$SCHEMA.custom-keybinding:$MIA" name 'KORTEX'
+      gsettings set "$SCHEMA.custom-keybinding:$MIA" command 'gtk-launch kortex'
+      gsettings set "$SCHEMA.custom-keybinding:$MIA" binding '<Control><Alt>k'
+      echo "Scorciatoia Ctrl+Alt+K aggiunta a GNOME (apre l'icona KORTEX del menu)"
+    fi
+  fi
 fi
 
 if [ "$MACCHINA" = "Termux" ]; then
   echo
   echo "Su Termux:"
   echo "  - per vedere i file del telefono (foto, download) dai il permesso una volta:  termux-setup-storage"
-  echo "  - Gemini CLI si installa con:  npm install -g @google/gemini-cli"
   echo "  - Claude Code:  pkg install ripgrep && npm install -g @anthropic-ai/claude-code"
+  echo "  - per i suoni:  pkg install termux-api  (e l'app Termux:API dallo store)"
   echo "  - lo schermo è piccolo: tieni il telefono in orizzontale, o usa un tablet"
 fi
 
@@ -127,4 +154,4 @@ echo
 echo "Fatto. Prova:"
 echo "  kortex --check     (quali IA trova su questa macchina)"
 echo "  kortex             (apre l'interfaccia nella cartella in cui ti trovi)"
-[ "$MACCHINA" = "Linux" ] && echo "  oppure l'icona KORTEX nel menu, o Ctrl+Alt+K se il desktop è Lubuntu"
+[ "$MACCHINA" = "Linux" ] && echo "  oppure l'icona KORTEX nel menu, o Ctrl+Alt+K (Lubuntu e GNOME)"

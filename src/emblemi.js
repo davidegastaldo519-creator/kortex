@@ -1,6 +1,6 @@
 import { Box, Text } from 'ink';
 import { html, C } from './grafica.js';
-import { campiona, hex, rgbHex } from './splash.js';
+import { campiona, hex, rgbHex } from './colori.js';
 
 // Quanto resta vivo un emblema dopo un evento.
 export const DURATA_VIVO = 4500;

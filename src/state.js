@@ -121,3 +121,35 @@ export function diffProgetto(cwd) {
   if (diff.length > 8000) diff = diff.slice(0, 8000) + '\n…(diff troncato)';
   return `FILE NUOVI:\n${nuovi || '(nessuno)'}\n\nRIEPILOGO MODIFICHE:\n${stat.trim() || '(nessuna)'}\n\nDIFF:\n${diff}`;
 }
+
+// Il diff colorato per la scheda DIFF: ogni riga con il suo tipo (file, blocco, piu, meno, testo, nuovo, info).
+export function diffColorato(cwd, massimoRighe = 1500) {
+  const stat = git(cwd, ['diff', '--stat']);
+  if (stat === null) return { righe: [], riepilogo: 'questa cartella non usa git', vuoto: 'senza git non c\'è un diff: per averlo, nel terminale: git init' };
+  const righe = [];
+  const nuovi = (git(cwd, ['ls-files', '--others', '--exclude-standard']) || '').split('\n').filter((r) => r && !nostro(r));
+  const diff = git(cwd, ['diff', '--no-color']) || '';
+  for (const r of diff.split('\n')) {
+    if (righe.length >= massimoRighe) { righe.push({ t: '… (diff troncato)', tipo: 'info' }); break; }
+    if (r.startsWith('diff --git')) { righe.push({ t: '', tipo: 'testo' }); righe.push({ t: '▌ ' + r.replace(/^diff --git a\/(.*) b\/.*/, '$1'), tipo: 'file' }); }
+    else if (r.startsWith('+++') || r.startsWith('---') || r.startsWith('index ')) continue;
+    else if (r.startsWith('@@')) righe.push({ t: r, tipo: 'blocco' });
+    else if (r.startsWith('+')) righe.push({ t: r, tipo: 'piu' });
+    else if (r.startsWith('-')) righe.push({ t: r, tipo: 'meno' });
+    else righe.push({ t: r, tipo: 'testo' });
+  }
+  for (const f of nuovi.slice(0, 20)) {
+    righe.push({ t: '', tipo: 'testo' });
+    righe.push({ t: `▌ ${f}  (file nuovo)`, tipo: 'nuovo' });
+    try {
+      const pieno = path.join(cwd, f);
+      if (fs.statSync(pieno).size < 60000) {
+        const testo = fs.readFileSync(pieno, 'utf8');
+        if (!/[\0]/.test(testo.slice(0, 2000))) for (const r of testo.split('\n').slice(0, 80)) righe.push({ t: '+' + r, tipo: 'piu' });
+        else righe.push({ t: '  (file binario)', tipo: 'info' });
+      } else righe.push({ t: '  (file grande: non lo mostro)', tipo: 'info' });
+    } catch { /* */ }
+  }
+  const riepilogo = (stat.trim().split('\n').pop() || '').trim() || (nuovi.length ? `${nuovi.length} file nuov${nuovi.length === 1 ? 'o' : 'i'}` : '');
+  return { righe: righe.length && righe[0].t === '' ? righe.slice(1) : righe, riepilogo, vuoto: 'nessuna modifica: il diff compare mentre le IA lavorano' };
+}

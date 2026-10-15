@@ -1,4 +1,4 @@
-// I temi cambiano i colori d'accento di tutta l'interfaccia, il gradiente del logo e l'animazione iniziale.
+// I temi cambiano i colori d'accento di tutta l'interfaccia, il gradiente del logo, il teschio e la schermata iniziale.
 export const TEMI = {
   neon:     { nome: 'NEON',     brand: ['#9D4EDD', '#FF2BD6', '#00F5FF'], viola: '#9D4EDD', rosa: '#FF2BD6', ciano: '#00F5FF' },
   fuoco:    { nome: 'FUOCO',    brand: ['#9D0208', '#E85D04', '#FFBA08'], viola: '#B5361A', rosa: '#FF5400', ciano: '#FFBA08' },
@@ -12,6 +12,7 @@ export function applicaTema(config, C) {
   C.viola = t.viola;
   C.rosa = t.rosa;
   C.ciano = t.ciano;
+  C.tema = TEMI[config.tema] ? config.tema : 'neon';
   config.brand.colori = [...t.brand];
   return t;
 }

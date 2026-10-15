@@ -24,36 +24,40 @@
   "ruoli": {
     "direttore": [
       "claude",
-      "gemini",
       "codex",
+      "gemini",
       "ollama"
     ],
     "pianificatore": [
       "claude",
-      "gemini",
       "codex",
+      "gemini",
       "ollama"
     ],
     "esecutore": [
       "claude",
       "codex"
     ],
+    "operatore": [
+      "claude",
+      "codex"
+    ],
     "revisore": [
-      "gemini",
       "codex",
       "claude",
+      "gemini",
       "ollama"
     ],
     "catalogatore": [
-      "gemini",
       "claude",
       "codex",
+      "gemini",
       "ollama"
     ],
     "memorista": [
-      "gemini",
       "claude",
       "codex",
+      "gemini",
       "ollama"
     ]
   },
@@ -147,7 +151,38 @@
         "--yolo"
       ],
       "ollama": []
+    },
+    "operatore": {
+      "claude": [
+        "--permission-mode",
+        "acceptEdits",
+        "--allowedTools",
+        "Bash"
+      ],
+      "codex": [
+        "--sandbox",
+        "workspace-write"
+      ],
+      "gemini": [],
+      "ollama": []
+    },
+    "verifica": {
+      "claude": [
+        "--allowedTools",
+        "Bash"
+      ],
+      "codex": [
+        "--sandbox",
+        "workspace-write"
+      ],
+      "gemini": [],
+      "ollama": []
     }
   },
-  "versioneConfig": 2
+  "versioneConfig": 3,
+  "parallelo": 2,
+  "revisoreVerifica": true,
+  "grafica": "auto",
+  "suoni": true,
+  "mouse": true
 }

@@ -19,6 +19,14 @@ export function fermaTutti() {
   attivi.clear();
 }
 
+// Alla chiusura di KORTEX nessuna IA deve più partire: le chiamate in corso falliscono subito, senza riserve.
+let chiusura = false;
+export function chiudiTutto() {
+  chiusura = true;
+  fermaTutti();
+}
+export const inChiusura = () => chiusura;
+
 function costruisciArgs(modello, variabili) {
   const out = [];
   for (const t of modello) {
@@ -37,6 +45,7 @@ function descriviStrumento(input = {}) {
 
 export function eseguiIA({ cfg, prompt, cwd, sessione, extra, modello, adddir, timeoutSecondi, silenzioSecondi = 300, onTesto, onLog }) {
   return new Promise((risolvi) => {
+    if (chiusura) return risolvi({ ok: false, errore: 'KORTEX si sta chiudendo' });
     const resume = sessione && cfg.resume ? cfg.resume.map((x) => x.replace('{session}', sessione)) : [];
     const args = costruisciArgs(cfg.args, { prompt, extra, resume, modello, adddir });
     const mostrati = args.map((a) => (a === prompt ? '«prompt»' : a)).join(' ');

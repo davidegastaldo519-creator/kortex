@@ -15,12 +15,29 @@ Si cambia pagina con TAB (avanti) e SHIFT+TAB (indietro). ESC torna sempre a LAV
 - GUIDA: questa pagina.
 
 # LE SCHEDE DI LAVORO
-A destra, CTRL+N le fa girare (o /scheda 1..4):
-- AGENTI: l'albero del lavoro (richiesta → compiti → ruoli → strumenti usati), la mappa dei ruoli con i collegamenti che si accendono, la linea del tempo con una corsia per ogni IA.
-- OUTPUT: tutto quello che scrivono le IA, scorrevole.
-- REGISTRO: ogni evento con ora, IA col suo colore, ruolo e simbolo. ▶ avvio, ▸ strumento, ✔ finito, ✖ errore, ⟳ riserva. CTRL+F cambia il filtro.
-- FILE: i compiti in corso e i file cambiati nel progetto.
+A destra, CTRL+N le fa girare (o /scheda 1..5, o un clic sul nome):
+- AGENTI: l'albero del lavoro (richiesta → compiti → ruoli → strumenti usati), la coda delle richieste, la mappa dei ruoli con i collegamenti che si accendono, la linea del tempo con una corsia per ogni IA.
+- OUTPUT: tutto quello che scrivono le IA, scorrevole. Quando più compiti lavorano insieme, ogni riga porta il numero del suo compito (│1, │2…).
+- REGISTRO: ogni evento con ora, IA col suo colore, ruolo e simbolo. ▶ avvio, ▸ strumento, ✔ finito, ✖ errore, ⟳ riserva, ⇉ compiti in parallelo. CTRL+F cambia il filtro.
+- DIFF: le modifiche ai file del progetto, colorate (verde aggiunte, rosso righe tolte, giallo file nuovi), aggiornate mentre le IA lavorano. Serve git nel progetto.
+- FILE: i compiti in corso, con le dipendenze, e i file cambiati nel progetto.
 Sopra le schede c'è la fila delle IA con i loro cervelli e cosa stanno facendo.
+
+# IL MOUSE
+Si può cliccare quasi tutto: le pagine in alto, le schede, le macchine del terminale, i progetti e le chat (un clic sceglie, un secondo clic apre), le categorie e le voci del database, i parametri della plancia (◂ e ▸ regolano, le mappature si applicano), i file nel selettore, le opzioni di una domanda del direttore, la ✕ sugli allegati. La rotella scorre il pannello su cui sta il puntatore.
+- Con il mouse acceso, per selezionare del testo nel terminale tieni premuto SHIFT mentre trascini. Oppure /mouse off (e /mouse on per riaccenderlo). Anche dalla plancia.
+
+# LA CODA DELLE RICHIESTE
+Mentre la squadra lavora la riga › resta libera: scrivi la richiesta successiva e INVIO, e si mette in coda. Parte da sola appena finisce quella in corso. La vedi nella scheda AGENTI e nell'intestazione ("in coda 2"). /coda la elenca, /coda svuota la cancella.
+
+# LA DOMANDA DEL DIRETTORE
+Di solito il direttore decide da solo. Se scrivi /chiedi davanti alla richiesta, può farti UNA domanda a risposta multipla quando la richiesta è davvero ambigua (per esempio: "in che linguaggio?"). Compare nel pannello di destra: rispondi con il numero (1-4) o con un clic; ESC lascia decidere a lui. La risposta entra nella richiesta e il lavoro parte.
+
+# I SUONI
+Suoni brevi, creati da KORTEX stesso: il battito, il ronzio e il colpo nella schermata iniziale; una nota quando un compito riesce, una discesa quando fallisce, un accordo quando la richiesta è finita, un bip per le notifiche, un clic cambiando pagina. Servono pw-play, paplay, aplay, play (sox) o ffplay; su Termux l'app Termux:API. /suoni off li spegne, /suoni on li riaccende (anche dalla plancia). I file stanno in ~/.cache/kortex/suoni.
+
+# LA GRAFICA PIENA E LEGGERA
+All'avvio KORTEX misura quanto è veloce il PC e sceglie da solo: PIENA (teschio in 3D nell'intestazione, neuroni negli spazi vuoti, transizioni tra le pagine, occhi che seguono l'IA che pensa) oppure LEGGERA (teschio fermo, niente neuroni, niente transizioni: tutta la CPU alle IA). /grafica piena, /grafica leggera, /grafica spenta forzano la scelta e la salvano; /grafica auto torna alla misura automatica. Da riga di comando, kortex --leggera vale per una volta sola. Anche dalla plancia (Grafica).
 
 # IL TERMINALE
 È a sinistra nella pagina LAVORO e lavora su più macchine. CTRL+D cambia destinazione (o /dest N):
@@ -32,7 +49,7 @@ Sopra le schede c'è la fila delle IA con i loro cervelli e cosa stanno facendo.
 
 # LA MEMORIA
 KORTEX ricorda su tre livelli, e li vedi tutti nella pagina STUDIO, a destra, nella MAPPA DELLA MEMORIA:
-- PREFERENZE: come vuoi che si lavori, in tutti i progetti. /ricorda testo per aggiungerne una, /dimentica N per toglierla. Il memorista le aggiunge da solo quando ne esprimi una in una richiesta ("d'ora in poi…").
+- PREFERENZE: come vuoi che si lavori, in tutti i progetti. /ricorda testo per aggiungerne una, /dimentica N per toglierla. Il memorista le aggiunge da solo quando ne esprimi una in una richiesta ("d'ora in poi…"). Vivono nel DATABASE (~/kortex-database/preferenze.md): con GitHub collegato sono le stesse su tutti i PC, senza fare niente.
 - RIASSUNTO DEL PROGETTO: cos'è, com'è fatto, cosa resta da fare. Il memorista lo riscrive dopo ogni richiesta e il direttore lo legge prima di dividere il lavoro.
 - SOLUZIONI IMPARATE: quando in un lavoro esce un trucco o la soluzione a un errore che serve anche altrove, il memorista la salva nel DATABASE (categoria note, tag #soluzione). Così la ritrovi negli altri progetti.
 Il memorista lavora in sottofondo dopo ogni richiesta e non ti blocca. Si spegne dalla plancia (Memoria automatica). /memoria ti dice dove stanno i file.
@@ -54,7 +71,8 @@ Ogni cosa aggiunta viene catalogata da un'IA (il CATALOGATORE, di solito Gemini)
 Come lo usano le IA:
 - DA SOLE: a ogni richiesta KORTEX cerca nel database le voci che c'entrano (titolo, tag, descrizione, contenuto) e le passa alle IA con percorso ed estratto. Lo vedi nell'output: "dal database: …".
 - SU RICHIESTA: scrivi @blender o @ID nella richiesta per obbligarle a usare una voce precisa; @manuali per tutta una categoria. Nella pagina DATABASE, INVIO su una voce ti prepara la riga con il suo @.
-Copia su GitHub: /db github crea un repository privato kortex-database e lo carica; /db sync lo aggiorna; su una macchina nuova /db scarica tuo-utente lo riporta giù. Così hai la stessa memoria su PC, Lenovo e tablet.
+Il GUARDIANO: KORTEX sorveglia la cartella del database. Un file che compare lì dentro (scritto da un'IA, copiato a mano, arrivato da GitHub) viene catalogato da solo pochi secondi dopo; all'avvio una scansione sistema quello che è arrivato a KORTEX chiuso. /db scansiona la lancia a mano.
+Copia su GitHub: /db github crea un repository privato kortex-database e lo carica; su una macchina nuova /db scarica tuo-utente lo riporta giù. Da lì in poi KORTEX sincronizza da solo in sottofondo: scarica le novità all'avvio, carica dopo ogni cosa nuova (voci, preferenze, soluzioni) e all'uscita. /db sync lo fa subito. Così hai la stessa memoria su PC, Lenovo e tablet.
 
 # I PUNTI DI RIPRISTINO
 Prima e dopo ogni richiesta KORTEX fotografa i file del progetto in un archivio nascosto (.kortex/istantanee.git), separato dal tuo git: la tua storia non viene toccata.
@@ -86,6 +104,9 @@ Valgono per qualunque finestra, non solo KORTEX: utile per tenere affiancati KOR
 # I CERVELLI DELLE IA
 Ogni IA ha un cervello col suo colore: Claude arancio, Codex verde, Gemini blu, Ollama grigio. Quando pensa si accende e ci corre sopra un'onda di luce; da ferma respira piano; rosso lampeggiante vuol dire che ha finito il limite dell'abbonamento; spento vuol dire non collegata.
 
+# LA SCHERMATA INIZIALE
+Il risveglio: il battito del cuore, le onde cerebrali, il cervello a circuiti che si accende, il teschio in 3D vero (calcolato al momento, con luce e ombre) che si forma e apre gli occhi, KORTEX che si assembla dai frammenti, la firma forgiata a caldo, l'accensione dei sistemi con lo stato delle IA, del database e della memoria, e il teschio che rimpicciolisce fino all'intestazione mentre le pagine si disegnano. Cambia col tema: stelle (NEON), fiamme (FUOCO), neve (GHIACCIO), pioggia di caratteri (MATRIX). Un tasto qualsiasi la salta; kortex --no-anim la toglie; sul telefono c'è una versione corta.
+
 # I TASTI
 - TAB / SHIFT+TAB: pagina successiva / precedente
 - CTRL+T: cursore nel terminale ($) oppure nelle IA (›)
@@ -103,6 +124,9 @@ Ogni IA ha un cervello col suo colore: Claude arancio, Codex verde, Gemini blu, 
 
 # I COMANDI
 Si scrivono nella barra in basso, iniziano con la barra /.
+- /chiedi richiesta: come una richiesta normale, ma il direttore può farti una domanda prima
+- /coda · /coda svuota: le richieste in attesa
+- /grafica auto | piena | leggera | spenta · /suoni on | off · /mouse on | off
 - /chat claude (o codex, gemini, ollama): parli con una sola IA, che ricorda la conversazione
 - /team: torni alla squadra
 - /nuova: in chat diretta, ricomincia da zero
@@ -116,26 +140,28 @@ Si scrivono nella barra in basso, iniziano con la barra /.
 - /togli N: toglie un allegato (/togli tutti per tutti)
 - /screenshot: come CTRL+O
 - /dest: elenca le macchine del terminale; /dest 2 ne sceglie una; /dest aggiungi nome utente@host la salva
-- /scheda N: scheda a destra da 1 a 4
+- /scheda N: scheda a destra da 1 a 5
 - /progetto: elenca; /progetto nuovo nome · /progetto apri N · /progetto importa percorso · /progetto qui
 - /chat nuova [titolo] · /chat apri N: le chat del progetto
 - /ripristina [ID]: punti di ripristino
-- /db: tutti i comandi del database
+- /db: tutti i comandi del database (/db scansiona cataloga i file arrivati da soli)
 - /tema neon | fuoco | ghiaccio | matrix: colori di tutto KORTEX
 - /ricorda testo · /dimentica N · /memoria: la memoria
 - /pulisci: svuota l'output
 - /esci: esce
 
 # COME LAVORA LA SQUADRA
-- DIRETTORE: legge la richiesta e il diario, divide il lavoro in compiti, sceglie l'esecutore per ognuno.
+- DIRETTORE: legge la richiesta e il diario, divide il lavoro in compiti, sceglie chi li fa e dice quali compiti dipendono da quali.
 - PIANIFICATORE: per ogni compito scrive un piano a passi. Legge i file, non li tocca.
-- ESECUTORE: fa il lavoro vero sui file del progetto.
-- REVISORE: controlla. Se trova un errore concreto, l'esecutore corregge.
+- ESECUTORE: fa il lavoro vero sui file del progetto (compiti "codice" e "analisi").
+- OPERATORE: lancia comandi, test, script e installazioni dentro la cartella del progetto e riferisce l'esito (compiti "comando"). Il direttore non chiede mai a te di lanciare qualcosa: lo dà all'operatore. Ha il permesso di eseguire comandi anche in autonomia PRUDENTE, ma solo dentro il progetto.
+- REVISORE: controlla. Può lanciare i test o il programma per verificare davvero (Revisore esegue test, nella plancia): non si fida del riepilogo. Se trova un errore concreto, chi ha lavorato corregge.
+I compiti che non dipendono l'uno dall'altro partono IN PARALLELO, fino al numero scelto nella plancia (Compiti in parallelo): due esecutori su due file diversi insieme, poi i test quando tutti e due hanno finito. Nell'albero le dipendenze sono segnate con ← e i numeri dei compiti da aspettare.
 Le correzioni riprendono la stessa conversazione e ricevono solo le note del revisore: niente si ripete da capo.
 Il revisore ha una regola: se non riesce a vedere qualcosa, non è un errore di chi ha lavorato.
 
 # LE MAPPATURE
-Sono regolazioni pronte, dalla più leggera alla più profonda. Cambiano compiti, piano, revisione, correzioni e tempo massimo tutti insieme.
+Sono regolazioni pronte, dalla più leggera alla più profonda. Cambiano compiti, parallelo, piano, revisione, correzioni e tempo massimo tutti insieme.
 - 1 LAMPO: domande, ritocchi di una riga. Niente piano, niente revisione.
 - 2 AGILE: piccole modifiche su un file. Revisione sì, piano no.
 - 3 STANDARD: il lavoro di tutti i giorni. Tutto acceso, una correzione.
@@ -167,6 +193,9 @@ Ogni progetto ha una cartella nascosta .kortex con il diario (STATO.md), le conv
 - L'interfaccia è lenta: metti Animazioni su LEGGERA o SPENTA.
 - La barra di avanzamento è ferma da molto: la riga in fondo dice quale IA sta lavorando e da quanto. Se è troppo, CTRL+K la salta. KORTEX comunque considera bloccata un'IA che non scrive niente per 5 minuti (Silenzio massimo, nella plancia) e passa da solo alla riserva; direttore, pianificatore e revisore hanno al massimo 10 minuti.
 - Una CLI chiede una conferma (per esempio Gemini: "ti fidi di questa cartella?"): dentro KORTEX non si può rispondere. Lancia quella CLI da sola nella cartella del progetto, rispondi una volta, e da lì in poi non lo chiede più.
+- Il PC arranca con la grafica piena: /grafica leggera (o kortex --leggera per una volta). Con due compiti in parallelo anche le IA pesano di più: nella plancia metti Compiti in parallelo a 1.
+- Il mouse non risponde: il terminale deve supportare il mouse (qterminal, Ptyxis, GNOME Terminal, Konsole lo fanno). Se il testo non si seleziona più: SHIFT+trascina, oppure /mouse off.
+- Non si sente niente: /suoni mostra quale lettore ha trovato; su Lubuntu basta  sudo apt install -y pulseaudio-utils  (paplay) o alsa-utils (aplay).
 - Per aggiornare KORTEX: esci e scrivi kortex --aggiorna.
 - Per capire cosa non va con una IA: esci e scrivi kortex --prova. Fa una domanda vera a ognuna e ti dice il rimedio.
 - Nella plancia, la colonna "ultime 5h" conta le chiamate a ogni IA nella finestra in cui gli abbonamenti misurano l'uso: se si avvicina al limite diventa gialla, al limite rossa.

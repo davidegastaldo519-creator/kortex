@@ -8,15 +8,16 @@ import { spawn } from 'node:child_process';
 import { eseguiRichiesta, chatDiretta, catalogaCon, aggiornaMemoria } from './director.js';
 import { applicaTema, TEMI } from './temi.js';
 import { preferenze, ricorda, dimentica, percorsoPreferenze } from './memoria.js';
-import { campiona, hex, rgbHex } from './splash.js';
+import { campiona, hex, rgbHex } from './colori.js';
 import * as db from './database.js';
-import { apriStato, righeFile } from './state.js';
-import { fermaTutti } from './adapters.js';
+import { apriStato, righeFile, diffColorato } from './state.js';
+import { fermaTutti, chiudiTutto } from './adapters.js';
 import { FILE_CONFIG } from './config.js';
 import { Telemetria } from './telemetria.js';
-import { PARAMETRI, cambia, applicaMappatura, salvaConfig } from './parametri.js';
+import { PARAMETRI, MAPPATURE, cambia, applicaMappatura, applicaGrafica, salvaConfig } from './parametri.js';
 import { elencoDestinazioni, Sessioni } from './terminale.js';
-import { html, C, PAGINE, Intestazione, SPIN } from './grafica.js';
+import { html, C, PAGINE, Intestazione, SPIN, GRAFICA } from './grafica.js';
+import { StdinFiltrato, accendiMouse, spegniMouse, eventi as eventiMouse, gestisciClick, gestisciRotella } from './mouse.js';
 import { elencoProgetti, creaProgetto, importaProgetto, registraProgetto, toccaProgetto, progettoDi, elencoChat, creaChat, salvaChat, caricaChat, riassuntoChat, istantanea, elencoIstantanee, ripristina } from './progetti.js';
 import { RUOLI, FILTRI, SCHEDE, BarraAllegati, PaginaSelettore, PaginaLavoro, PaginaControllo, PaginaStudio, PaginaGuida, PaginaProgetti, PaginaDatabase } from './pagine.js';
 
@@ -31,6 +32,12 @@ const CONSIGLI = [
   '/mappa 1 per domande veloci, /mappa 5 per i lavori enormi. 3 è il giusto mezzo.',
   'Se un\'IA finisce il limite, il suo cervello diventa rosso e lavorano le riserve.',
   '/dest aggiungi vps root@indirizzo  salva una macchina SSH nel terminale.',
+  'Mentre la squadra lavora puoi scrivere la richiesta successiva: si mette in coda e parte da sola.',
+  '/chiedi davanti alla richiesta: il direttore può farti UNA domanda a risposta multipla prima di partire.',
+  'Col mouse: clic su pagine, schede, voci e pulsanti; rotella per scorrere. Shift+trascina per selezionare testo.',
+  'La scheda DIFF mostra le modifiche ai file colorate mentre le IA lavorano.',
+  'I compiti indipendenti partono in parallelo: lo vedi nella scheda AGENTI con ⇉. /grafica leggera se il PC arranca.',
+  'Le preferenze (/ricorda) stanno nel database: con GitHub collegato sono uguali su tutti i PC.',
 ];
 const ora = () => new Date().toTimeString().slice(0, 8);
 const ruoliIniziali = () => Object.fromEntries(RUOLI.map(([id]) => [id, { stato: 'attesa', ia: null }]));
@@ -69,7 +76,7 @@ function indiceFile(cwd) {
   return [...new Set(out)];
 }
 
-function App({ config, disponibili, cwd: cwdIniziale, versione }) {
+function App({ config, disponibili, cwd: cwdIniziale, versione, suoni }) {
   const { exit } = useApp();
   const { stdout } = useStdout();
   const [dim, setDim] = useState({ c: stdout.columns || 80, r: stdout.rows || 24 });
@@ -101,7 +108,7 @@ function App({ config, disponibili, cwd: cwdIniziale, versione }) {
   const [file, setFile] = useState([]);
   const [costo, setCosto] = useState(0);
   const [modo, setModo] = useState(null);
-  const [scorri, setScorri] = useState({ lavoro: 0, studio: 0, guida: 0, registro: 0, shell: 0 });
+  const [scorri, setScorri] = useState({ lavoro: 0, studio: 0, guida: 0, registro: 0, shell: 0, diff: 0, selettore: 0, controllo: 0, database: 0 });
   const [selezionato, setSelezionato] = useState(0);
   const [messaggio, setMessaggio] = useState('');
   const [lavagna, setLavagna] = useState({});
@@ -110,6 +117,11 @@ function App({ config, disponibili, cwd: cwdIniziale, versione }) {
   const [filtro, setFiltro] = useState('tutti');
   const [iDest, setIDest] = useState(0);
   const [shellInCorso, setShellInCorso] = useState(false);
+  const [coda, setCoda] = useState([]);
+  const [domanda, setDomanda] = useState(null);
+  const [lampeggio, setLampeggio] = useState(0);
+  const [guardiano, setGuardiano] = useState(false);
+  const [sincronizzata, setSincronizzata] = useState(false);
   const [, ridisegna] = useState(0);
   const storia = useRef([]);
   const massimi = useRef({});
@@ -118,12 +130,18 @@ function App({ config, disponibili, cwd: cwdIniziale, versione }) {
   const sessioni = useRef(null);
   const cacheProgetti = useRef({ chiave: null, progetti: [], chat: [], istantanee: [] });
   const cacheDb = useRef({ chiave: null });
+  const cacheDiff = useRef({ t: 0, cwd: null, dati: null });
+  const domandaAperta = useRef(null);
+  const codaRef = useRef([]);
+  const occupatoRef = useRef(false);
+  const timerSincro = useRef(null);
   if (!stato.current) stato.current = apriStato(cwd);
   if (!tel.current) tel.current = new Telemetria(Object.keys(disponibili));
   if (!sessioni.current) sessioni.current = new Sessioni(cwd);
   const destinazioni = elencoDestinazioni(config);
   const dest = destinazioni[Math.min(iDest, destinazioni.length - 1)];
   const sessione = sessioni.current.di(dest);
+  const suona = (n) => { try { suoni?.suona(n); } catch { /* */ } };
 
   // Mentre trascini il bordo della finestra arrivano decine di ridimensionamenti: aspetto che ti fermi,
   // pulisco lo schermo (altrimenti restano pezzi del disegno vecchio) e ridisegno alla misura nuova.
@@ -152,8 +170,8 @@ function App({ config, disponibili, cwd: cwdIniziale, versione }) {
     return () => clearInterval(t);
   }, []);
   useEffect(() => {
-    if (!transizione || config.animazioni === 'spenta') return;
-    const t = setInterval(() => { if (Date.now() - transizione > 320) { clearInterval(t); setTransizione(0); } else ridisegna((x) => x + 1); }, 30);
+    if (!transizione || config.animazioni !== 'piena') return;
+    const t = setInterval(() => { if (Date.now() - transizione > 200) { clearInterval(t); setTransizione(0); } else ridisegna((x) => x + 1); }, 25);
     return () => clearInterval(t);
   }, [transizione]);
 
@@ -171,16 +189,38 @@ function App({ config, disponibili, cwd: cwdIniziale, versione }) {
     ui.current = {
       out: (t) => scrivi(t),
       titolo: (t) => scrivi(`\n▌ ${t}\n`),
-      log: (m, meta = {}) => setLog((p) => [...p.slice(-1500), { ora: ora(), testo: String(m), ia: meta.ia || null, ruolo: meta.ruolo || '', tipo: meta.tipo || tipoDa(String(m)) }]),
+      log: (m, meta = {}) => { if (process.env.KORTEX_DEBUG_LOG) { try { fs.appendFileSync(process.env.KORTEX_DEBUG_LOG, `${ora()} ${meta.ia || '-'} ${meta.ruolo || '-'} ${m}\n`); } catch { /* */ } } setLog((p) => [...p.slice(-1500), { ora: ora(), testo: String(m), ia: meta.ia || null, ruolo: meta.ruolo || '', tipo: meta.tipo || tipoDa(String(m)) }]); },
       ruolo: (r, s, ia) => setRuoli((p) => ({ ...p, [r]: { stato: s, ia: ia ?? p[r]?.ia ?? null } })),
       costo: (x) => setCosto((v) => v + x),
       compiti: (l) => setCompiti(l),
       pensiero: (tipo, testo) => setLavagna((l) => ({ ...l, [tipo]: tipo === 'richiesta' ? testo : l[tipo] && tipo !== 'compiti' ? l[tipo] + '\n\n' + testo : testo, ...(tipo === 'richiesta' ? { compiti: '', piano: '', revisione: '' } : {}) })),
       aggiornaFile,
-      notifica: (testo, tipo = 'info') => setNotifiche((n) => [...n.slice(-3), { testo, tipo, t: Date.now() }]),
+      notifica: (testo, tipo = 'info') => { setNotifiche((n) => [...n.slice(-3), { testo, tipo, t: Date.now() }]); suona(tipo === 'ok' ? 'ok' : tipo === 'errore' ? 'errore' : 'notifica'); },
+      // la domanda del direttore: aspetta la risposta dell'utente (tasti 1-4, clic, o ESC)
+      domanda: (d) => new Promise((res) => { domandaAperta.current = { ...d, res }; setDomanda({ ...d }); suona('notifica'); }),
     };
   }
   const segnaEvento = (dove, testo) => setEventi((e) => ({ ...e, [dove]: Date.now(), [dove + 'Testo']: testo }));
+  const rispondiDomanda = (i) => {
+    const d = domandaAperta.current;
+    if (!d) return;
+    domandaAperta.current = null;
+    setDomanda(null);
+    d.res(i === null ? null : d.opzioni[i] ?? null);
+  };
+
+  const contestoBase = () => ({ config, disponibili, cwd, stato: stato.current, ui: ui.current, tel: tel.current });
+  const catalogatore = ({ nome, estratto: e, percorso }) => catalogaCon(contestoBase(), { nome, estratto: e, percorso });
+  const catalogatorePronto = () => (config.ruoli.catalogatore || []).some((id) => disponibili[id]?.ok && !disponibili[id]?.limitato);
+
+  // La sincronizzazione del database su GitHub: in sottofondo, senza fermare niente.
+  const sincronizzaPresto = (ritardo = 15000) => {
+    if (!db.statoGithub()) return;
+    clearTimeout(timerSincro.current);
+    timerSincro.current = setTimeout(() => {
+      db.sincronizzaAsync().then((r) => { if (r) { setSincronizzata(true); ui.current.log(`⇅ database sincronizzato: ${r}`, { tipo: 'info' }); } }).catch(() => {});
+    }, ritardo);
+  };
 
   useEffect(() => {
     aggiornaFile();
@@ -188,6 +228,18 @@ function App({ config, disponibili, cwd: cwdIniziale, versione }) {
     scrivi(`Benvenuto in ${config.brand.nome} ${versione}. Cartella di lavoro: ${cwd}\n` +
       `IA collegate: ${attive.join(', ') || 'nessuna — scrivi /ia per capire perché'}\n` +
       `Scrivi cosa vuoi fare nella riga › e premi INVIO. Ctrl+T per passare al terminale $. TAB per le altre pagine.\n`);
+    // il guardiano del database: file nuovi catalogati da soli; prima una scansione di quello che c'è già
+    let ferma = null;
+    try {
+      const cat = () => (catalogatorePronto() ? catalogatore : null);
+      const nuova = (v) => { setDbVersione((x) => x + 1); segnaEvento('db', 'indicizzato'); ui.current.notifica(`📚 indicizzato: ${v.titolo}`, 'info'); sincronizzaPresto(); };
+      ferma = db.sorveglia({ catalogatore: cat(), onVoce: nuova, onErrore: () => {} });
+      setGuardiano(true);
+      setTimeout(() => db.scansiona(cat(), nuova).catch(() => {}), 2500);
+    } catch { setGuardiano(false); }
+    // con GitHub collegato, all'avvio scarico le novità degli altri PC
+    if (db.statoGithub()) db.sincronizzaAsync().then((r) => { if (r) { setSincronizzata(true); setDbVersione((x) => x + 1); ui.current.log(`⇅ database allineato con GitHub: ${r}`, { tipo: 'info' }); } }).catch(() => {});
+    return () => { ferma?.(); clearTimeout(timerSincro.current); };
   }, []);
 
   const apriProgetto = (percorso) => {
@@ -206,6 +258,7 @@ function App({ config, disponibili, cwd: cwdIniziale, versione }) {
     setVersioneProgetti((v) => v + 1);
     segnaEvento('prog', 'progetto aperto');
     setFile(righeFile(percorso));
+    cacheDiff.current = { t: 0, cwd: null, dati: null };
     const v = progettoDi(percorso);
     scrivi(`\n▌ PROGETTO APERTO: ${v?.nome || path.basename(percorso)}   (${percorso})\n${v?.descrizione ? v.descrizione + '\n' : ''}Scrivi una richiesta per iniziare una chat nuova, oppure apri una chat esistente dalla pagina PROGETTI.\n`);
   };
@@ -229,10 +282,6 @@ function App({ config, disponibili, cwd: cwdIniziale, versione }) {
     }
     return cacheProgetti.current;
   };
-
-  const contestoBase = () => ({ config, disponibili, cwd, stato: stato.current, ui: ui.current, tel: tel.current });
-  const catalogatore = ({ nome, estratto: e, percorso }) => catalogaCon(contestoBase(), { nome, estratto: e, percorso });
-  const catalogatorePronto = () => (config.ruoli.catalogatore || []).some((id) => disponibili[id]?.ok && !disponibili[id]?.limitato);
   const datiDb = () => {
     const chiave = `${dbVersione}|${dbCategoria}|${dbQuery}`;
     if (cacheDb.current.chiave !== chiave) {
@@ -241,6 +290,11 @@ function App({ config, disponibili, cwd: cwdIniziale, versione }) {
       cacheDb.current = { chiave, voci: tutte, conteggi: db.conteggi(), github: db.statoGithub() };
     }
     return cacheDb.current;
+  };
+  const datiDiff = () => {
+    const vecchio = Date.now() - cacheDiff.current.t > (occupato ? 2500 : 6000);
+    if (vecchio || cacheDiff.current.cwd !== cwd) cacheDiff.current = { t: Date.now(), cwd, dati: diffColorato(cwd) };
+    return cacheDiff.current.dati;
   };
   const aggiungiAlDb = async (cosa, tipo = 'file') => {
     scrivi(`\n📚 aggiungo al database: ${cosa}${catalogatorePronto() ? '  (il catalogatore scrive la scheda…)' : ''}\n`);
@@ -251,6 +305,7 @@ function App({ config, disponibili, cwd: cwdIniziale, versione }) {
       scrivi(`✔ ${v.titolo}  →  ${v.categoria}${v.tag.length ? '  #' + v.tag.join(' #') : ''}\n${v.descrizione ? '  ' + v.descrizione + '\n' : ''}`);
       setDbVersione((x) => x + 1);
       segnaEvento('db', 'nuova voce');
+      sincronizzaPresto();
       return v;
     } catch (e) {
       scrivi(`✖ non riesco ad aggiungerlo: ${e.message.split('\n')[0]}\n`);
@@ -296,13 +351,27 @@ function App({ config, disponibili, cwd: cwdIniziale, versione }) {
       scrivi(`\n✔ screenshot allegato: ${path.basename(dest2)}\n`);
     });
   };
+  const ultimoInputIA = useRef('');
   const cambiaInputIA = (valore) => {
+    // un INVIO arrivato insieme al testo (incollato, o digitato mentre KORTEX era occupato a disegnare)
+    // vale come INVIO: la prima riga parte, il resto rimane nella casella
+    if (/[\r\n]/.test(valore)) {
+      const [prima, ...resto] = valore.split(/\r\n|\r|\n/);
+      const rimasto = resto.join(' ').trim();
+      ultimoInputIA.current = rimasto;
+      setInputIA(rimasto);
+      if (prima.trim()) inviaIA(prima, { lasciaInput: true });
+      return;
+    }
+    ultimoInputIA.current = valore;
     if (!selettore && !valore.startsWith('/') && valore.length - inputIA.length >= 3) {
       const trovati = percorsiIncollati(valore);
       if (trovati.length) {
         let resto = valore;
         for (const t of trovati) if (aggiungiAllegato(t.percorso)) resto = resto.replace(t.intero, '');
-        setInputIA(resto.replace(/\s{2,}/g, ' ').trimStart());
+        const pulito = resto.replace(/\s{2,}/g, ' ').trimStart();
+        ultimoInputIA.current = pulito;
+        setInputIA(pulito);
         return;
       }
     }
@@ -336,7 +405,7 @@ function App({ config, disponibili, cwd: cwdIniziale, versione }) {
     const [cmd, ...resto] = t.slice(1).split(/\s+/);
     const arg = resto.join(' ');
     switch (cmd) {
-      case 'esci': case 'q': fermaTutti(); sessioni.current.chiudiTutto(); exit(); return;
+      case 'esci': case 'q': chiudiTutto(); sessioni.current.chiudiTutto(); db.sincronizzaStaccato(); exit(); return;
       case 'pulisci': setRighe(['']); return;
       case 'pagina': { const p = PAGINE[Number(arg) - 1]; if (p) setPagina(p[0]); return; }
       case 'progetto': {
@@ -362,31 +431,54 @@ function App({ config, disponibili, cwd: cwdIniziale, versione }) {
         try {
           if (sotto === 'aggiungi' && restoArg) { aggiungiAlDb(restoArg.replace(/^~/, os.homedir())); return; }
           if (sotto === 'nota' && restoArg) { aggiungiAlDb(restoArg, 'nota'); return; }
-          if (sotto === 'sposta' && resto[2]) { const v = db.sposta(resto[1], resto[2]); setDbVersione((x) => x + 1); scrivi(`\n✔ ${v.titolo} → ${v.categoria}\n`); return; }
-          if (sotto === 'tag' && resto[2]) { const v = db.aggiornaVoce(resto[1], { tag: resto.slice(2).join(' ').split(/[,\s]+/).filter(Boolean) }); setDbVersione((x) => x + 1); scrivi(`\n✔ tag di ${v.titolo}: ${v.tag.join(', ')}\n`); return; }
-          if (sotto === 'titolo' && resto[2]) { const v = db.aggiornaVoce(resto[1], { titolo: resto.slice(2).join(' ') }); setDbVersione((x) => x + 1); scrivi(`\n✔ titolo: ${v.titolo}\n`); return; }
-          if (sotto === 'togli' && resto[1]) { const v = db.togli(resto[1]); setDbVersione((x) => x + 1); scrivi(`\n✔ ${v.titolo} spostato nel cestino (archivio/.cestino)\n`); return; }
+          if (sotto === 'sposta' && resto[2]) { const v = db.sposta(resto[1], resto[2]); setDbVersione((x) => x + 1); scrivi(`\n✔ ${v.titolo} → ${v.categoria}\n`); sincronizzaPresto(); return; }
+          if (sotto === 'tag' && resto[2]) { const v = db.aggiornaVoce(resto[1], { tag: resto.slice(2).join(' ').split(/[,\s]+/).filter(Boolean) }); setDbVersione((x) => x + 1); scrivi(`\n✔ tag di ${v.titolo}: ${v.tag.join(', ')}\n`); sincronizzaPresto(); return; }
+          if (sotto === 'titolo' && resto[2]) { const v = db.aggiornaVoce(resto[1], { titolo: resto.slice(2).join(' ') }); setDbVersione((x) => x + 1); scrivi(`\n✔ titolo: ${v.titolo}\n`); sincronizzaPresto(); return; }
+          if (sotto === 'togli' && resto[1]) { const v = db.togli(resto[1]); setDbVersione((x) => x + 1); scrivi(`\n✔ ${v.titolo} spostato nel cestino (archivio/.cestino)\n`); sincronizzaPresto(); return; }
           if (sotto === 'cerca' && restoArg) { const r = db.cerca(restoArg, 6); scrivi('\n' + (r.map((v) => `  ${v.id}  ${v.titolo} [${v.categoria}]`).join('\n') || 'niente di utile') + '\n'); return; }
           if (sotto === 'github') { scrivi('\n📚 collego il database a GitHub (repository privato kortex-database)…\n'); const u = db.collegaGithub(); setDbVersione((x) => x + 1); scrivi(`✔ collegato: ${u}\n`); return; }
-          if (sotto === 'sync') { scrivi(`\n✔ database sincronizzato: ${db.sincronizza()}\n`); return; }
+          if (sotto === 'sync') { scrivi('\n⇅ sincronizzo il database in sottofondo…\n'); db.sincronizzaAsync().then((r) => { setSincronizzata(!!r); setDbVersione((x) => x + 1); scrivi(`✔ database sincronizzato: ${r || 'non collegato a GitHub (/db github)'}\n`); }).catch((e) => scrivi(`✖ ${e.message}\n`)); return; }
           if (sotto === 'scarica' && resto[1]) { scrivi(`\n✔ ${db.scaricaDaGithub(resto[1])}\n`); setDbVersione((x) => x + 1); return; }
+          if (sotto === 'scansiona') {
+            const orf = db.orfani();
+            scrivi(`\n📚 scansione: ${orf.length} file da catalogare${orf.length ? '…' : ''}\n`);
+            db.scansiona(catalogatorePronto() ? catalogatore : null, (v) => { scrivi(`  ✔ ${v.titolo} [${v.categoria}]\n`); setDbVersione((x) => x + 1); }, { conIA: 20 }).then((f) => { if (f.length) sincronizzaPresto(); }).catch(() => {});
+            return;
+          }
         } catch (e) { scrivi(`\n✖ ${e.message.split('\n')[0]}\n`); return; }
-        scrivi(`\n📚 Database: ${db.DIR_DB}\n  /db aggiungi percorso-o-url · /db nota testo · /db cerca parole\n  /db sposta ID categoria · /db tag ID a,b · /db titolo ID nuovo titolo · /db togli ID\n  /db github (copia privata) · /db sync · /db scarica utente-github (su una macchina nuova)\nNella richiesta: @titolo o @ID obbliga le IA a usare quella voce, @manuali tutta la categoria.\n`);
+        scrivi(`\n📚 Database: ${db.DIR_DB}\n  /db aggiungi percorso-o-url · /db nota testo · /db cerca parole\n  /db sposta ID categoria · /db tag ID a,b · /db titolo ID nuovo titolo · /db togli ID\n  /db github (copia privata) · /db sync · /db scarica utente-github (su una macchina nuova) · /db scansiona\nNella richiesta: @titolo o @ID obbliga le IA a usare quella voce, @manuali tutta la categoria.\nIl guardiano ${guardiano ? 'è acceso' : 'è spento'}: i file che compaiono nel database vengono catalogati da soli.\n`);
         return;
       }
       case 'tema': {
         if (!TEMI[arg]) { scrivi(`\nTemi: ${Object.keys(TEMI).join(', ')} — attuale: ${config.tema || 'neon'}\n`); return; }
         config.tema = arg; applicaTema(config, C); salva(`tema ${arg}`); scrivi(`\n✔ tema ${TEMI[arg].nome}\n`); return;
       }
+      case 'grafica': {
+        if (!['auto', 'piena', 'leggera', 'spenta'].includes(arg)) { scrivi(`\nGrafica: ${config.grafica || 'auto'} (effettiva: ${config.animazioni}). Uso: /grafica auto · piena · leggera · spenta\n`); return; }
+        config.grafica = arg; applicaGrafica(config); salva(`grafica ${arg}`); scrivi(`\n✔ grafica ${arg}${arg === 'auto' ? ` → ${config.animazioni}` : ''}\n`); return;
+      }
+      case 'suoni': {
+        if (!['on', 'off', 'si', 'sì', 'no'].includes(arg)) { scrivi(`\nSuoni: ${suoni?.attivi ? 'accesi' : 'spenti'}${suoni?.lettore ? ` (lettore: ${suoni.lettore})` : ' (nessun lettore audio trovato: pw-play, paplay, aplay, play, ffplay)'}. Uso: /suoni on · /suoni off\n`); return; }
+        const v = ['on', 'si', 'sì'].includes(arg); suoni?.cambia(v); config.suoni = v; salva(`suoni ${v ? 'accesi' : 'spenti'}`); scrivi(`\n✔ suoni ${v ? 'accesi' : 'spenti'}\n`); if (v) suona('ok'); return;
+      }
+      case 'mouse': {
+        if (!['on', 'off'].includes(arg)) { scrivi(`\nMouse: ${config.mouse !== false ? 'acceso' : 'spento'}. Uso: /mouse on · /mouse off  (spento, il testo si seleziona senza SHIFT)\n`); return; }
+        config.mouse = arg === 'on'; if (config.mouse) accendiMouse(); else spegniMouse(); salva(`mouse ${arg}`); scrivi(`\n✔ mouse ${arg === 'on' ? 'acceso' : 'spento'}\n`); return;
+      }
+      case 'coda': {
+        if (arg === 'svuota') { codaRef.current = []; setCoda([]); scrivi('\n✔ coda svuotata\n'); return; }
+        scrivi('\n' + (codaRef.current.length ? codaRef.current.map((q, i) => `  ${i + 1}. ${q}`).join('\n') : 'nessuna richiesta in coda') + '\n/coda svuota per cancellarle\n');
+        return;
+      }
       case 'ricorda':
-        if (!arg) { scrivi('\nUso: /ricorda preferenza (vale in tutti i progetti)\n'); return; }
-        scrivi(ricorda(arg) ? `\n✔ ricorderò: ${arg}\n` : '\n· già presente\n'); segnaEvento('memoria', ''); return;
+        if (!arg) { scrivi('\nUso: /ricorda preferenza (vale in tutti i progetti, su tutti i PC)\n'); return; }
+        scrivi(ricorda(arg) ? `\n✔ ricorderò: ${arg}\n` : '\n· già presente\n'); segnaEvento('memoria', ''); sincronizzaPresto(); return;
       case 'dimentica': {
         const via = dimentica(Number(arg));
-        scrivi(via ? `\n✔ dimenticato: ${via}\n` : '\nUso: /dimentica N (il numero lo vedi nella pagina STUDIO)\n'); return;
+        scrivi(via ? `\n✔ dimenticato: ${via}\n` : '\nUso: /dimentica N (il numero lo vedi nella pagina STUDIO)\n'); sincronizzaPresto(); return;
       }
       case 'memoria':
-        scrivi(`\nPreferenze: ${percorsoPreferenze()}\nRiassunto del progetto: ${path.join(cwd, '.kortex', 'riassunto.md')}\nSoluzioni: ${db.DIR_DB}/note (tag #soluzione)\nMemoria automatica: ${config.memoriaAutomatica === false ? 'spenta' : 'accesa'} (plancia CONTROLLO)\n`);
+        scrivi(`\nPreferenze: ${percorsoPreferenze()} (nel database: viaggiano su GitHub)\nRiassunto del progetto: ${path.join(cwd, '.kortex', 'riassunto.md')}\nSoluzioni: ${db.DIR_DB}/note (tag #soluzione)\nMemoria automatica: ${config.memoriaAutomatica === false ? 'spenta' : 'accesa'} (plancia CONTROLLO)\n`);
         return;
       case 'ripristina': {
         if (!arg) { scrivi('\n' + (elencoIstantanee(cwd, 15).map((i) => `  ${i.id}  ${i.data}  ${i.etichetta}`).join('\n') || 'nessun punto di ripristino') + '\nUso: /ripristina ID\n'); return; }
@@ -450,17 +542,26 @@ function App({ config, disponibili, cwd: cwdIniziale, versione }) {
       case 'nuova':
         if (!modo) { scrivi('\n/nuova vale in chat diretta\n'); return; }
         stato.current.salvaSessione(modo, 'chat', null); storia.current = []; scrivi(`\n▌ Nuova conversazione con ${disponibili[modo].nome}\n`); return;
+      case 'chiedi':
+        if (!arg) { scrivi('\nUso: /chiedi seguito dalla richiesta. Il direttore potrà farti UNA domanda a risposta multipla prima di dividere il lavoro.\n'); return; }
+        avviaRichiesta(arg, { chiedi: true });
+        return;
       default:
-        scrivi('\nComandi: /dest  /scheda N  /allega [file]  /allegati  /togli N  /screenshot  /chat X  /team  /nuova  /mappa N  /nota testo  /pagina N  /ia  /ruoli  /stato  /pulisci  /esci\nLa pagina GUIDA spiega tutto nel dettaglio.\n');
+        scrivi('\nComandi: /dest  /scheda N  /allega [file]  /allegati  /togli N  /screenshot  /chat X  /team  /nuova  /chiedi richiesta  /coda  /mappa N  /nota testo  /pagina N  /grafica  /suoni  /mouse  /ia  /ruoli  /stato  /pulisci  /esci\nLa pagina GUIDA spiega tutto nel dettaglio.\n');
     }
   }
 
-  async function inviaIA(valore) {
-    try { await inviaIAvero(valore); } catch (e) { ui.current.log(`✖ errore interno: ${e.message}`, { tipo: 'errore' }); scrivi(`\n✖ errore interno: ${e.message}\n`); setOccupato(false); }
+  async function inviaIA(valore, opz = {}) {
+    if (!opz.lasciaInput) {
+      if (!selettore && pagina !== 'database' && ultimoInputIA.current.length > (valore || '').length && ultimoInputIA.current.startsWith(valore || '')) valore = ultimoInputIA.current;
+      ultimoInputIA.current = '';
+    }
+    try { await inviaIAvero(valore, opz); } catch (e) { ui.current.log(`✖ errore interno: ${e.message}`, { tipo: 'errore' }); scrivi(`\n✖ errore interno: ${e.message}\n`); setOccupato(false); occupatoRef.current = false; }
   }
-  async function inviaIAvero(valore) {
+  async function inviaIAvero(valore, opz = {}) {
     const t = valore.trim();
-    setInputIA('');
+    if (process.env.KORTEX_DEBUG_TASTI) { try { fs.appendFileSync(process.env.KORTEX_DEBUG_TASTI, 'INVIO ' + JSON.stringify(valore) + '\n'); } catch { /* */ } }
+    if (!opz.lasciaInput) { setInputIA(''); ultimoInputIA.current = ''; }
     if (selettore) {
       const f = filtrati()[selettore.sel];
       if (f) { aggiungiAllegato(f); scrivi(`\n✔ allegato ${path.basename(f)}\n`); }
@@ -485,9 +586,23 @@ function App({ config, disponibili, cwd: cwdIniziale, versione }) {
       try { const v = creaProgetto(t); apriProgetto(v.percorso); setPagina('lavoro'); } catch (e) { scrivi(`\n✖ ${e.message}\n`); }
       return;
     }
-    if (!t || occupato) return;
+    if (!t) return;
     if (t.startsWith('/')) return comando(t);
+    if (occupatoRef.current) {
+      // la squadra sta lavorando: la richiesta aspetta il suo turno
+      codaRef.current = [...codaRef.current, t];
+      setCoda([...codaRef.current]);
+      scrivi(`\n⧗ in coda (${codaRef.current.length}): ${t}\n`);
+      ui.current.notifica(`⧗ in coda: ${t.slice(0, 40)}`, 'info');
+      return;
+    }
+    await avviaRichiesta(t, {});
+  }
+
+  async function avviaRichiesta(t, { chiedi = false }) {
+    if (occupatoRef.current) { codaRef.current = [...codaRef.current, (chiedi ? '/chiedi ' : '') + t]; setCoda([...codaRef.current]); return; }
     setOccupato(true);
+    occupatoRef.current = true;
     // ogni cartella in cui lavori diventa un progetto, con le sue chat
     let prog = progetto;
     if (!prog) { prog = registraProgetto({ nome: path.basename(cwd), percorso: cwd }); setProgetto(prog); }
@@ -499,11 +614,11 @@ function App({ config, disponibili, cwd: cwdIniziale, versione }) {
     setScorri((s) => ({ ...s, lavoro: 0 }));
     const daAllegare = allegati;
     setAllegati([]);
-    scrivi(`\n› ${t}${daAllegare.length ? `   📎 ${daAllegare.length} allegat${daAllegare.length === 1 ? 'o' : 'i'}` : ''}\n`);
+    scrivi(`\n› ${t}${daAllegare.length ? `   📎 ${daAllegare.length} allegat${daAllegare.length === 1 ? 'o' : 'i'}` : ''}${chiedi ? '   ? il direttore può fare una domanda' : ''}\n`);
     const conoscenze = [...new Map([...db.menzioni(t), ...db.cerca(t, 3)].map((v) => [v.id, v])).values()].slice(0, 5);
     if (conoscenze.length) { scrivi(`📚 dal database: ${conoscenze.map((v) => v.titolo).join(' · ')}\n`); segnaEvento('db', 'le IA leggono'); }
     inizioLavoro.current = Date.now();
-    const ctx = { config, disponibili, cwd, stato: stato.current, ui: ui.current, tel: tel.current, allegati: daAllegare, chatId: c.id, chatPrecedente: riassuntoChat({ messaggi: c.messaggi.slice(0, -1) }), conoscenze };
+    const ctx = { config, disponibili, cwd, stato: stato.current, ui: ui.current, tel: tel.current, allegati: daAllegare, chatId: c.id, chatPrecedente: riassuntoChat({ messaggi: c.messaggi.slice(0, -1) }), conoscenze, chiedi };
     let risposta = '';
     try {
       if (modo) {
@@ -514,6 +629,7 @@ function App({ config, disponibili, cwd: cwdIniziale, versione }) {
         scrivi('\n');
       } else {
         setRuoli(ruoliIniziali());
+        setCompiti([]);
         const esiti = await eseguiRichiesta({ richiesta: t, ctx });
         risposta = (esiti || []).map((e, i) => `${e.esito === 'OK' ? '✔' : e.esito === 'FALLITO' ? '✖' : '⚠'} ${i + 1}. ${e.c.titolo} — ${e.esito}`).join('\n') || '(nessun esito)';
       }
@@ -521,16 +637,21 @@ function App({ config, disponibili, cwd: cwdIniziale, versione }) {
       ui.current.log('✖ ' + e.message, { tipo: 'errore' });
       risposta = '✖ ' + e.message;
     }
+    if (domandaAperta.current) rispondiDomanda(null);
     const dopo = istantanea(cwd, `dopo: ${t.slice(0, 70)}`);
     c.messaggi.push({ chi: 'kortex', testo: risposta, ora: new Date().toISOString(), istantanea: dopo });
     salvaChat(cwd, c);
     setVersioneProgetti((x) => x + 1);
     segnaEvento('prog', 'punto di ripristino');
     setOccupato(false);
+    occupatoRef.current = false;
+    setLampeggio(Date.now());
     aggiornaFile();
+    cacheDiff.current.t = 0;
     const durata = Math.round((Date.now() - inizioLavoro.current) / 1000);
     const riuscita = !risposta.includes('✖');
-    ui.current.notifica(`${riuscita ? '✔' : '⚠'} richiesta finita in ${durata >= 60 ? Math.floor(durata / 60) + 'm ' + (durata % 60) + 's' : durata + 's'}`, riuscita ? 'ok' : 'avviso');
+    setNotifiche((n) => [...n.slice(-3), { testo: `${riuscita ? '✔' : '⚠'} richiesta finita in ${durata >= 60 ? Math.floor(durata / 60) + 'm ' + (durata % 60) + 's' : durata + 's'}`, tipo: riuscita ? 'ok' : 'avviso', t: Date.now() }]);
+    suona(riuscita ? 'fine' : 'errore');
     // notifica del sistema: la vedi anche se stai lavorando in un'altra finestra
     if (!process.env.TERMUX_VERSION) { try { spawn('notify-send', ['-a', 'KORTEX', '-i', path.join(os.homedir(), '.local/share/icons/kortex.svg'), 'KORTEX', `${riuscita ? 'Finito' : 'Finito con avvisi'}: ${t.slice(0, 80)}`], { stdio: 'ignore' }).on('error', () => {}); } catch { /* */ } }
     // il memorista lavora in sottofondo: non blocca la prossima richiesta
@@ -542,11 +663,29 @@ function App({ config, disponibili, cwd: cwdIniziale, versione }) {
           segnaEvento('memoria', '');
           if (f.soluzione) { setDbVersione((x) => x + 1); segnaEvento('db', 'soluzione imparata'); ui.current.notifica(`📚 imparata: ${f.soluzione.titolo}`, 'info'); }
           if (f.preferenze.length) ui.current.notifica(`★ ricorderò: ${f.preferenze[0]}`, 'info');
+          if (f.soluzione || f.preferenze.length) sincronizzaPresto();
         })
         .catch(() => {});
     }
+    // la prossima richiesta in coda parte da sola
+    if (codaRef.current.length) {
+      const prossima = codaRef.current[0];
+      codaRef.current = codaRef.current.slice(1);
+      setCoda([...codaRef.current]);
+      scrivi(`\n⏭ dalla coda: ${prossima}\n`);
+      setTimeout(() => { if (prossima.startsWith('/chiedi ')) avviaRichiesta(prossima.slice(8), { chiedi: true }); else avviaRichiesta(prossima, {}); }, 400);
+    }
   }
   const inviaShell = (valore) => { const t = valore.trim(); setInputShell(''); if (t) eseguiShell(t); };
+  const cambiaInputShell = (valore) => {
+    if (/[\r\n]/.test(valore)) {
+      const [prima, ...resto] = valore.split(/\r\n|\r|\n/);
+      setInputShell(resto.join(' ').trim());
+      if (prima.trim()) eseguiShell(prima.trim());
+      return;
+    }
+    setInputShell(valore);
+  };
 
   const filtrati = () => {
     if (!selettore) return [];
@@ -555,6 +694,7 @@ function App({ config, disponibili, cwd: cwdIniziale, versione }) {
   };
 
   // ---------- impaginazione ----------
+  GRAFICA.leggera = config.animazioni !== 'piena';
   const { c, r } = dim;
   const H = Math.max(16, r - 1);
   const grande = H >= 40 && c >= 140;
@@ -566,16 +706,20 @@ function App({ config, disponibili, cwd: cwdIniziale, versione }) {
 
   const cambiaPagina = (verso) => {
     const i = PAGINE.findIndex(([id]) => id === pagina);
-    setPagina(PAGINE[(i + verso + PAGINE.length) % PAGINE.length][0]);
+    vaiAPagina(PAGINE[(i + verso + PAGINE.length) % PAGINE.length][0]);
+  };
+  const vaiAPagina = (id) => {
+    if (id === pagina) return;
+    setPagina(id);
     setMessaggio('');
     setTransizione(Date.now());
   };
-  const chiaveScorri = pagina === 'lavoro' ? (fuoco === 'shell' ? 'shell' : scheda === 'registro' ? 'registro' : 'lavoro') : pagina;
-  const dalBasso = ['lavoro', 'registro', 'shell'].includes(chiaveScorri);
-  const sposta = (quanto) => setScorri((s) => {
-    const v = s[chiaveScorri] ?? 0;
-    const nuovo = dalBasso ? v + quanto : v - quanto;
-    return { ...s, [chiaveScorri]: Math.max(0, Math.min(massimi.current[chiaveScorri] ?? 0, nuovo)) };
+  const chiaveScorri = pagina === 'lavoro' ? (fuoco === 'shell' ? 'shell' : scheda === 'registro' ? 'registro' : scheda === 'diff' ? 'diff' : 'lavoro') : pagina;
+  const dalBasso = (k) => ['lavoro', 'registro', 'shell'].includes(k);
+  const sposta = (quanto, chiave = chiaveScorri) => setScorri((s) => {
+    const v = s[chiave] ?? 0;
+    const nuovo = dalBasso(chiave) ? v + quanto : v - quanto;
+    return { ...s, [chiave]: Math.max(0, Math.min(massimi.current[chiave] ?? 0, nuovo)) };
   });
 
   // La casella di testo riceve anche la lettera delle combinazioni Ctrl: la tolgo subito dopo.
@@ -590,11 +734,56 @@ function App({ config, disponibili, cwd: cwdIniziale, versione }) {
     }, 0);
   };
 
+  // ---------- le azioni del mouse: ogni pagina sa cosa fare con un clic ----------
+  const azioni = {
+    tick,
+    pagina: vaiAPagina,
+    scheda: (id) => setScheda(id),
+    filtro: (id) => setFiltro(id),
+    dest: (id) => { const i = destinazioni.findIndex((d) => d.id === id); if (i >= 0) { setIDest(i); setFuoco('shell'); } },
+    fuoco: (f) => setFuoco(f),
+    rotella: (chiave, verso) => sposta(verso * 3, chiave),
+    togliAllegato: (i) => setAllegati((a) => a.filter((_, k) => k !== i)),
+    selettore: (i) => { const f = filtrati()[i]; if (f) { aggiungiAllegato(f); scrivi(`\n✔ allegato ${path.basename(f)}\n`); } setSelettore(null); },
+    domanda: (i) => rispondiDomanda(i),
+    progetto: (i) => {
+      const d = datiProgetti();
+      if (colonna === 'progetti' && selezione.progetto === i) { const q = d.progetti[i]; if (q) { apriProgetto(q.percorso); vaiAPagina('lavoro'); } }
+      else { setColonna('progetti'); setSelezione({ progetto: i, chat: 0 }); }
+    },
+    chat: (i) => {
+      const d = datiProgetti();
+      if (colonna === 'chat' && selezione.chat === i) { const q = d.progetti[selezione.progetto]; if (q) { if (q.percorso !== cwd) apriProgetto(q.percorso); setTimeout(() => { const cc = caricaChat(q.percorso, d.chat[i].id); if (cc) apriChat(cc); }, 0); } }
+      else { setColonna('chat'); setSelezione((z) => ({ ...z, chat: i })); }
+    },
+    colonna: (col) => setColonna(col),
+    istantanea: (id) => { setInputIA(`/ripristina ${id}`); vaiAPagina('lavoro'); setFuoco('ia'); },
+    dbCategoria: (id) => { setDbCategoria(id); setDbSel(0); },
+    dbVoce: (i) => { if (dbSel === i) { const v = datiDb().voci[i]; if (v) { setInputIA(`@${v.id} `); setDbQuery(''); vaiAPagina('lavoro'); setFuoco('ia'); } } else setDbSel(i); },
+    parametro: (i, cosa, ev) => {
+      setSelezionato(i);
+      const p = PARAMETRI[i];
+      if (cosa === 'meno' || cosa === 'piu') { cambia(config, p, cosa === 'piu' ? 1 : -1); if (p.chiave === 'tema') applicaTema(config, C); salva('salvato'); }
+      else if (cosa === 'barra' && p.tipo === 'sino') { cambia(config, p, 1); salva('salvato'); }
+    },
+    mappatura: (i) => { const m = applicaMappatura(config, i); if (m) salva(`mappatura ${m.nome} applicata`); },
+  };
+  const azioniRef = useRef(azioni);
+  azioniRef.current = azioni;
+  useEffect(() => {
+    const click = (ev) => { try { gestisciClick(ev); } catch (e) { ui.current.log(`✖ errore interno (mouse): ${e.message}`, { tipo: 'errore' }); } };
+    const rotella = (ev) => { try { if (!gestisciRotella(ev)) azioniRef.current.rotella(chiaveScorri, ev.verso); } catch { /* */ } };
+    eventiMouse.on('click', click);
+    eventiMouse.on('rotella', rotella);
+    return () => { eventiMouse.off('click', click); eventiMouse.off('rotella', rotella); };
+  }, [chiaveScorri]);
+
   // Un errore dentro la gestione di un tasto non deve mai chiudere KORTEX: finisce nel registro.
   useInput((ch, key) => {
     try { gestisciTasto(ch, key); } catch (e) { ui.current.log(`✖ errore interno (tasto): ${e.message}`, { tipo: 'errore' }); ui.current.notifica('✖ errore interno: guarda il REGISTRO', 'errore'); }
   });
   function gestisciTasto(ch, key) {
+    if (process.env.KORTEX_DEBUG_TASTI) { try { fs.appendFileSync(process.env.KORTEX_DEBUG_TASTI, JSON.stringify({ ch, key: Object.entries(key).filter(([, v]) => v).map(([k]) => k), fuoco, occupato: occupatoRef.current, t: Date.now() % 100000 }) + '\n'); } catch { /* */ } }
     if (key.ctrl && 'tndfok'.includes(ch)) scartaLettera(ch);
     if (key.ctrl && ch === 'k' && occupato) {
       fermaTutti();
@@ -604,9 +793,13 @@ function App({ config, disponibili, cwd: cwdIniziale, versione }) {
     }
     if (key.ctrl && ch === 'c') {
       if (pagina === 'lavoro' && fuoco === 'shell' && sessioni.current.interrompi(dest)) return;
-      fermaTutti(); sessioni.current.chiudiTutto(); exit(); return;
+      chiudiTutto(); sessioni.current.chiudiTutto(); db.sincronizzaStaccato(); exit(); return;
     }
     if (key.ctrl && ch === 'o') return scattaScreenshot();
+    if (domanda) {
+      if (key.escape) { rispondiDomanda(null); return; }
+      if (/^[1-4]$/.test(ch) && Number(ch) <= domanda.opzioni.length) { scartaLettera(ch); rispondiDomanda(Number(ch) - 1); return; }
+    }
     if (selettore) {
       const n = filtrati().length;
       if (key.escape) { setSelettore(null); return; }
@@ -615,7 +808,7 @@ function App({ config, disponibili, cwd: cwdIniziale, versione }) {
       return;
     }
     if (key.tab) return cambiaPagina(key.shift ? -1 : 1);
-    if (key.escape) return setPagina('lavoro');
+    if (key.escape) return vaiAPagina('lavoro');
     if (pagina === 'controllo') {
       if (key.upArrow) return setSelezionato((x) => (x - 1 + PARAMETRI.length) % PARAMETRI.length);
       if (key.downArrow) return setSelezionato((x) => (x + 1) % PARAMETRI.length);
@@ -660,40 +853,46 @@ function App({ config, disponibili, cwd: cwdIniziale, versione }) {
     if (key.pageDown) return sposta(-pg);
   }
 
-  const ruoloAttivo = RUOLI.find(([id]) => ruoli[id].stato === 'lavoro');
+  const ruoloAttivo = RUOLI.find(([id]) => ruoli[id]?.stato === 'lavoro');
   const etichetta = modo ? 'risponde' : ruoloAttivo ? ruoloAttivo[1] : 'al lavoro';
   const consiglio = CONSIGLI[Math.floor(Date.now() / 12000) % CONSIGLI.length];
   const m = massimi.current;
+  // dove guardano gli occhi del teschio: verso l'IA che pensa (sono a destra), altrimenti vagano piano
+  const idIA = Object.keys(disponibili);
+  const attiva = idIA.findIndex((id) => tel.current.ia[id]?.attivo);
+  const sguardo = attiva >= 0 ? [0.45 + (0.45 * attiva) / Math.max(1, idIA.length - 1), -0.2] : [0.3 * Math.sin(tick * 0.03), 0.15 * Math.sin(tick * 0.05)];
 
   let corpo;
-  if (selettore) corpo = html`<${PaginaSelettore} h=${hCorpo} w=${c} elenco=${filtrati()} query=${selettore.query} sel=${selettore.sel} />`;
-  else if (pagina === 'progetti') { const d = datiProgetti(); corpo = html`<${PaginaProgetti} h=${hCorpo} w=${c} progetti=${d.progetti} selezione=${selezione} colonna=${colonna} chat=${d.chat} istantanee=${d.istantanee} progettoAttuale=${cwd} chatAttuale=${chat?.id} tick=${tick} ultimo=${eventi.prog} etichetta=${eventi.progTesto} />`; }
-  else if (pagina === 'database') { const d = datiDb(); corpo = html`<${PaginaDatabase} h=${hCorpo} w=${c} voci=${d.voci} categoria=${dbCategoria} query=${dbQuery} sel=${dbSel} conteggi=${d.conteggi} github=${d.github} pronto=${catalogatorePronto()} tick=${tick} ultimo=${eventi.db} etichetta=${eventi.dbTesto} />`; }
-  else if (pagina === 'controllo') corpo = html`<${PaginaControllo} h=${hCorpo} w=${c} config=${config} selezionato=${selezionato} tel=${tel.current} disponibili=${disponibili} tick=${tick} messaggio=${messaggio} />`;
+  if (selettore) corpo = html`<${PaginaSelettore} h=${hCorpo} w=${c} elenco=${filtrati()} query=${selettore.query} sel=${selettore.sel} azioni=${azioni} />`;
+  else if (pagina === 'progetti') { const d = datiProgetti(); corpo = html`<${PaginaProgetti} h=${hCorpo} w=${c} progetti=${d.progetti} selezione=${selezione} colonna=${colonna} chat=${d.chat} istantanee=${d.istantanee} progettoAttuale=${cwd} chatAttuale=${chat?.id} tick=${tick} ultimo=${eventi.prog} etichetta=${eventi.progTesto} azioni=${azioni} />`; }
+  else if (pagina === 'database') { const d = datiDb(); corpo = html`<${PaginaDatabase} h=${hCorpo} w=${c} voci=${d.voci} categoria=${dbCategoria} query=${dbQuery} sel=${dbSel} conteggi=${d.conteggi} github=${d.github} pronto=${catalogatorePronto()} tick=${tick} ultimo=${eventi.db} etichetta=${eventi.dbTesto} azioni=${azioni} guardiano=${guardiano} />`; }
+  else if (pagina === 'controllo') corpo = html`<${PaginaControllo} h=${hCorpo} w=${c} config=${config} selezionato=${selezionato} tel=${tel.current} disponibili=${disponibili} tick=${tick} messaggio=${messaggio} azioni=${azioni} />`;
   else if (pagina === 'studio') {
-    const memoria = { preferenze: preferenze(), riassunto: stato.current.riassunto(), soluzioni: db.soluzioni(6), diario: stato.current.memoria(10).split('\n').filter((r) => r.trim()), ultimo: eventi.memoria };
-    corpo = html`<${PaginaStudio} h=${hCorpo} w=${c} lavagna=${lavagna} appunti=${stato.current.appunti()} scorri=${scorri.studio} tick=${tick} massimi=${m} memoria=${memoria} />`;
+    const memoria = { preferenze: preferenze(), riassunto: stato.current.riassunto(), soluzioni: db.soluzioni(6), diario: stato.current.memoria(10).split('\n').filter((r) => r.trim()), ultimo: eventi.memoria, sincronizzata };
+    corpo = html`<${PaginaStudio} h=${hCorpo} w=${c} lavagna=${lavagna} appunti=${stato.current.appunti()} scorri=${scorri.studio} tick=${tick} massimi=${m} memoria=${memoria} azioni=${azioni} />`;
   }
-  else if (pagina === 'guida') corpo = html`<${PaginaGuida} h=${hCorpo} w=${c} scorri=${scorri.guida} massimi=${m} />`;
-  else corpo = html`<${PaginaLavoro} h=${hCorpo} w=${c} righe=${righe} scorri=${scheda === 'registro' ? scorri.registro : scorri.lavoro} log=${log} ruoli=${ruoli} disponibili=${disponibili} compiti=${compiti} file=${file} tick=${tick} massimi=${m} tel=${tel.current} scheda=${scheda} fuoco=${fuoco} filtro=${filtro} destinazioni=${destinazioni} dest=${dest} sessione=${sessione} scorriShell=${scorri.shell} inCorso=${shellInCorso} />`;
+  else if (pagina === 'guida') corpo = html`<${PaginaGuida} h=${hCorpo} w=${c} scorri=${scorri.guida} massimi=${m} azioni=${azioni} />`;
+  else corpo = html`<${PaginaLavoro} h=${hCorpo} w=${c} righe=${righe} scorri=${scheda === 'registro' ? scorri.registro : scheda === 'diff' ? scorri.diff : scorri.lavoro} log=${log} ruoli=${ruoli} disponibili=${disponibili} compiti=${compiti} file=${file} tick=${tick} massimi=${m} tel=${tel.current} scheda=${scheda} fuoco=${fuoco} filtro=${filtro} destinazioni=${destinazioni} dest=${dest} sessione=${sessione} scorriShell=${scorri.shell} inCorso=${shellInCorso} azioni=${azioni} coda=${coda} domanda=${domanda} diff=${scheda === 'diff' ? datiDiff() : null} />`;
 
   let progresso = 0;
   if (occupato) {
     const n = compiti.length;
     if (!n) progresso = 0.06;
     else {
-      const finiti = compiti.filter((x) => ['ok', 'avviso', 'errore'].includes(x.stato)).length;
-      const fase = ruoli.revisore.stato === 'lavoro' ? 0.85 : ruoli.esecutore.stato === 'lavoro' ? 0.5 : ruoli.pianificatore.stato === 'lavoro' ? 0.15 : 0;
+      const finiti = compiti.filter((x) => ['ok', 'avviso', 'errore', 'saltato'].includes(x.stato)).length;
+      const fase = ruoli.revisore?.stato === 'lavoro' ? 0.85 : ruoli.esecutore?.stato === 'lavoro' || ruoli.operatore?.stato === 'lavoro' ? 0.5 : ruoli.pianificatore?.stato === 'lavoro' ? 0.15 : 0;
       progresso = Math.min(0.99, (finiti + (finiti < n ? fase : 0)) / n);
     }
   }
   const secondiLavoro = occupato ? Math.round((Date.now() - inizioLavoro.current) / 1000) : 0;
   const durataTesto = (sec) => (sec >= 60 ? Math.floor(sec / 60) + 'm ' + (sec % 60) + 's' : sec + 's');
-  const chiamataAperta = occupato ? [...tel.current.chiamate].reverse().find((x) => !x.fine) : null;
+  const chiamateAperte = occupato ? tel.current.chiamate.filter((x) => !x.fine) : [];
+  const chiamataAperta = chiamateAperte[chiamateAperte.length - 1] || null;
   const barraLavoro = () => {
     const larg = Math.max(10, Math.min(50, c - 70));
     const pieni = Math.round(progresso * larg);
     const stops = config.brand.colori.map(hex);
+    const inLavoro = compiti.filter((x) => x.stato === 'lavoro').length;
     const corrente = compiti.findIndex((x) => x.stato === 'lavoro');
     const tratti = [];
     for (let i = 0; i < pieni; i += 2) tratti.push(html`<${Text} key=${i} color=${rgbHex(campiona(stops, i / larg - tick * 0.05))}>${'█'.repeat(Math.min(2, pieni - i))}<//>`);
@@ -701,58 +900,61 @@ function App({ config, disponibili, cwd: cwdIniziale, versione }) {
       <${Text} color=${C.rosa}>${SPIN[tick % SPIN.length]} <//>
       ${tratti}<${Text} color=${C.scuro}>${'░'.repeat(larg - pieni)}<//>
       <${Text} color=${C.gesso} bold> ${Math.round(progresso * 100)}%<//>
-      <${Text} color=${C.grigio}>  ${compiti.length ? `compito ${corrente >= 0 ? corrente + 1 : compiti.filter((x) => x.stato !== 'attesa').length}/${compiti.length}` : 'il direttore divide il lavoro'} · ${etichetta}${chiamataAperta ? ` (${disponibili[chiamataAperta.ia]?.nome || chiamataAperta.ia}, da ${durataTesto(Math.round((Date.now() - chiamataAperta.inizio) / 1000))})` : ''} · totale ${durataTesto(secondiLavoro)}<//>
+      <${Text} color=${C.grigio}>  ${compiti.length ? (inLavoro > 1 ? `⇉ ${inLavoro} compiti insieme` : `compito ${corrente >= 0 ? corrente + 1 : compiti.filter((x) => x.stato !== 'attesa').length}/${compiti.length}`) : domanda ? 'aspetto la tua risposta' : 'il direttore divide il lavoro'} · ${etichetta}${chiamataAperta ? ` (${disponibili[chiamataAperta.ia]?.nome || chiamataAperta.ia}, da ${durataTesto(Math.round((Date.now() - chiamataAperta.inizio) / 1000))})` : ''} · totale ${durataTesto(secondiLavoro)}${coda.length ? ` · in coda ${coda.length}` : ''}<//>
       <${Text} color=${chiamataAperta && Date.now() - chiamataAperta.inizio > 180000 ? C.giallo : C.scuro}>   Ctrl+K salta questa IA<//>
     <//>`;
   };
   const colNotifica = { ok: C.verde, avviso: C.giallo, errore: C.rosso, info: C.ciano };
   const visibiliNotifiche = notifiche.filter((x) => Date.now() - x.t < 5000);
-  const avanzTrans = transizione ? Math.min(1, (Date.now() - transizione) / 300) : 1;
+  const avanzTrans = transizione && config.animazioni === 'piena' ? Math.min(1, (Date.now() - transizione) / 190) : 1;
 
   const inLavoro = pagina === 'lavoro' && !selettore;
   const fuocoShell = inLavoro && fuoco === 'shell';
-  const segnapostoIA = selettore ? 'scrivi una parte del nome del file…' : pagina === 'progetti' ? 'nome del nuovo progetto e INVIO · INVIO da solo apre quello selezionato · ←→ ↑↓ per muoverti' : pagina === 'database' ? 'scrivi per cercare · INVIO usa la voce scelta · trascina un file per aggiungerlo · /db per i comandi' : modo ? `scrivi a ${disponibili[modo].nome}…` : 'scrivi cosa vuoi fare…   (trascina qui file e foto · /aiuto)';
+  const segnapostoIA = selettore ? 'scrivi una parte del nome del file…' : pagina === 'progetti' ? 'nome del nuovo progetto e INVIO · INVIO da solo apre quello selezionato · ←→ ↑↓ per muoverti' : pagina === 'database' ? 'scrivi per cercare · INVIO usa la voce scelta · trascina un file per aggiungerlo · /db per i comandi' : domanda ? 'rispondi con un numero da 1 a 4 (o clicca), ESC lascia decidere il direttore' : occupato ? 'scrivi la prossima richiesta: si mette in coda e parte da sola' : modo ? `scrivi a ${disponibili[modo].nome}…` : 'scrivi cosa vuoi fare…   (trascina qui file e foto · /aiuto)';
   const segnapostoShell = shellInCorso ? 'comando in corso… (Ctrl+C per fermarlo)' : `comando su ${dest.nome}…   (↑↓ precedenti · Ctrl+D cambia macchina)`;
-  const bloccato = occupato && !selettore;
 
-  return html`<${Box} flexDirection="column" width=${c} height=${H}>
-    <${Box} height=${hTesta}>
-      <${Intestazione} config=${config} tick=${tick} pagina=${pagina} modo=${modo} disponibili=${disponibili} occupato=${occupato} etichetta=${etichetta} costo=${costo} larghezza=${c} grande=${grande} versione=${versione} progetto=${progetto?.nome || path.basename(cwd)} chat=${chat?.titolo} />
+  return html`<${Box} flexDirection="column" width=${c} height=${H} overflow="hidden">
+    <${Box} height=${hTesta} overflow="hidden">
+      <${Intestazione} config=${config} tick=${tick} pagina=${pagina} modo=${modo} disponibili=${disponibili} occupato=${occupato} etichetta=${etichetta} costo=${costo} larghezza=${c} grande=${grande} versione=${versione} progetto=${progetto?.nome || path.basename(cwd)} chat=${chat?.titolo} onPagina=${vaiAPagina} sguardo=${sguardo} lampeggio=${lampeggio} tel=${tel.current} coda=${coda.length} suoniAttivi=${!!suoni?.attivi} mouseAttivo=${config.mouse !== false} />
     <//>
     ${corpo}
-    ${conAllegati && html`<${BarraAllegati} allegati=${allegati} larghezza=${c} />`}
+    ${conAllegati && html`<${BarraAllegati} allegati=${allegati} larghezza=${c} azioni=${azioni} />`}
     ${conInput && html`<${Box} height=${3}>
       ${inLavoro && html`<${Box} borderStyle="round" borderColor=${fuocoShell ? C.ciano : C.scuro} paddingX=${1} width=${wTerm} flexShrink=${0}>
         <${Text} color=${fuocoShell ? C.ciano : C.grigio} bold>$ <//>
         ${fuocoShell
-          ? html`<${TextInput} value=${inputShell} onChange=${setInputShell} onSubmit=${inviaShell} placeholder=${segnapostoShell} />`
+          ? html`<${TextInput} value=${inputShell} onChange=${cambiaInputShell} onSubmit=${inviaShell} placeholder=${segnapostoShell} />`
           : html`<${Text} color=${C.grigio} wrap="truncate-end">${inputShell || 'Ctrl+T per scrivere qui'}<//>`}
       <//>`}
-      <${Box} borderStyle="round" borderColor=${bloccato ? C.scuro : selettore ? C.giallo : fuocoShell ? C.scuro : C.rosa} paddingX=${1} flexGrow=${1}>
-        <${Text} color=${selettore ? C.giallo : C.rosa} bold>${selettore ? '🔎 ' : '› '}<//>
-        ${bloccato
-          ? html`<${Text} color=${C.grigio}>le IA stanno lavorando…  (Ctrl+T per usare il terminale intanto, TAB per le altre pagine)<//>`
-          : fuocoShell
-            ? html`<${Text} color=${C.grigio} wrap="truncate-end">${inputIA || 'Ctrl+T per scrivere alle IA'}<//>`
-            : html`<${TextInput} value=${selettore ? selettore.query : pagina === 'database' ? dbQuery : inputIA} onChange=${selettore ? (q) => setSelettore((s) => ({ ...s, query: q, sel: 0 })) : pagina === 'database' ? cambiaQueryDb : cambiaInputIA} onSubmit=${inviaIA} placeholder=${segnapostoIA} />`}
+      <${Box} borderStyle="round" borderColor=${selettore ? C.giallo : domanda ? C.giallo : fuocoShell ? C.scuro : occupato ? C.viola : C.rosa} paddingX=${1} flexGrow=${1}>
+        <${Text} color=${selettore ? C.giallo : domanda ? C.giallo : occupato ? C.viola : C.rosa} bold>${selettore ? '🔎 ' : domanda ? '? ' : occupato ? '⧗ ' : '› '}<//>
+        ${fuocoShell
+          ? html`<${Text} color=${C.grigio} wrap="truncate-end">${inputIA || 'Ctrl+T per scrivere alle IA'}<//>`
+          : html`<${TextInput} value=${selettore ? selettore.query : pagina === 'database' ? dbQuery : inputIA} onChange=${selettore ? (q) => setSelettore((s) => ({ ...s, query: q, sel: 0 })) : pagina === 'database' ? cambiaQueryDb : cambiaInputIA} onSubmit=${inviaIA} placeholder=${segnapostoIA} />`}
       <//>
     <//>`}
     ${occupato ? html`<${Box} height=${1} paddingX=${1}>${barraLavoro()}<//>` : html`<${Box} height=${1} paddingX=${1}>
-      <${Text} color=${C.ciano}>💡 <//><${Text} color=${C.grigio} wrap="truncate-end">${pagina === 'controllo' ? '↑↓ scegli il parametro · ←→ regola · 1-5 mappature · TAB pagina · ESC torna a LAVORO' : consiglio}<//>
+      <${Text} color=${C.ciano}>💡 <//><${Text} color=${C.grigio} wrap="truncate-end">${pagina === 'controllo' ? '↑↓ scegli il parametro · ←→ regola · 1-5 mappature · clic su ◂ ▸ · TAB pagina · ESC torna a LAVORO' : consiglio}<//>
     <//>`}
     ${visibiliNotifiche.length > 0 && html`<${Box} position="absolute" marginTop=${hTesta} marginLeft=${Math.max(0, c - 52)} flexDirection="column" width=${50}>
       ${visibiliNotifiche.map((x, i) => html`<${Box} key=${x.t + '' + i} borderStyle="round" borderColor=${colNotifica[x.tipo] || C.ciano} paddingX=${1} width=${50}><${Text} color=${colNotifica[x.tipo] || C.ciano} bold wrap="truncate-end">${x.testo}<//><//>`)}
     <//>`}
-    ${avanzTrans < 1 && config.animazioni !== 'spenta' && html`<${Box} position="absolute" marginTop=${hTesta} marginLeft=${Math.max(0, Math.round(avanzTrans * (c + 8)) - 8)} width=${8} height=${hCorpo} flexDirection="column">
-      ${Array.from({ length: hCorpo }, (_, y) => html`<${Text} key=${y} color=${rgbHex(campiona(config.brand.colori.map(hex), y / hCorpo + avanzTrans))}>░▒▓██▓▒░<//>`)}
+    ${avanzTrans < 1 && html`<${Box} position="absolute" marginTop=${hTesta} marginLeft=${Math.min(c - 1, Math.round(avanzTrans * c))} width=${Math.max(1, c - Math.round(avanzTrans * c))} height=${hCorpo} flexDirection="column">
+      ${Array.from({ length: hCorpo }, (_, y) => html`<${Text} key=${y} wrap="truncate-end"><${Text} color=${rgbHex(campiona(config.brand.colori.map(hex), y / hCorpo + avanzTrans))}>▌<//>${' '.repeat(Math.max(0, c - Math.round(avanzTrans * c) - 1))}<//>`)}
     <//>`}
   <//>`;
 }
 
 export async function avviaUI(props) {
   process.stdout.write('\x1b]0;KORTEX\x07\x1b[?1049h\x1b[2J\x1b[H');
-  const app = render(html`<${App} ...${props} />`, { exitOnCtrlC: false });
+  const stdin = new StdinFiltrato(process.stdin);
+  if (props.config.mouse !== false) accendiMouse();
+  const app = render(html`<${App} ...${props} />`, { exitOnCtrlC: false, stdin });
   await app.waitUntilExit();
-  fermaTutti();
+  chiudiTutto();
+  spegniMouse();
+  stdin.chiudi();
   process.stdout.write('\x1b[?25h\x1b[?1049l');
+  // se qualcosa resta appeso (un'IA che non vuole morire), tra poco si esce lo stesso
+  setTimeout(() => process.exit(0), 1500).unref();
 }

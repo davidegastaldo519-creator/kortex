@@ -1,8 +1,8 @@
 import { Box, Text } from 'ink';
 import { html, C, COLORE_IA, SPIN, accorcia } from './grafica.js';
 
-const RUOLI = ['direttore', 'pianificatore', 'esecutore', 'revisore'];
-const NOME_RUOLO = { direttore: 'Direttore', pianificatore: 'Pianificatore', esecutore: 'Esecutore', revisore: 'Revisore', chat: 'Chat' };
+const RUOLI = ['direttore', 'pianificatore', 'esecutore', 'operatore', 'revisore'];
+const NOME_RUOLO = { direttore: 'Direttore', pianificatore: 'Pianificatore', esecutore: 'Esecutore', operatore: 'Operatore', revisore: 'Revisore', catalogatore: 'Catalogatore', memorista: 'Memorista', chat: 'Chat' };
 const durata = (c) => `${Math.max(1, Math.round(((c.fine || Date.now()) - c.inizio) / 1000))}s`;
 const nomeIA = (disponibili, id) => disponibili[id]?.nome || id;
 
@@ -41,7 +41,7 @@ export function Albero({ tel, disponibili, tick, larghezza, altezza }) {
     r.compiti.forEach((comp, i) => {
       const ultimo = i === r.compiti.length - 1;
       const stato = { attesa: ['○', C.grigio], lavoro: [SPIN[tick % SPIN.length], C.rosa], ok: ['✔', C.verde], avviso: ['⚠', C.giallo], errore: ['✖', C.rosso] }[comp.stato] || ['○', C.grigio];
-      righe.push(html`<${Text} key=${'k' + i} wrap="truncate-end"><${Text} color=${C.scuro}>${ultimo ? '└─ ' : '├─ '}<//><${Text} color=${stato[1]}>${stato[0]} <//><${Text} color=${C.ciano} bold>${i + 1}. ${accorcia(comp.titolo, larghezza - 10)}<//><//>`);
+      righe.push(html`<${Text} key=${'k' + i} wrap="truncate-end"><${Text} color=${C.scuro}>${ultimo ? '└─ ' : '├─ '}<//><${Text} color=${stato[1]}>${stato[0]} <//><${Text} color=${C.ciano} bold>${i + 1}. ${accorcia(comp.titolo, larghezza - 10)}<//>${comp.dipende?.length ? html`<${Text} color=${C.scuro}>  ← ${comp.dipende.join(',')}<//>` : ''}<//>`);
       const mie = chiamate.filter((c) => c.compito === i);
       mie.forEach((c, k) => rigaChiamata(c, ultimo ? '   ' : '│  ', k === mie.length - 1));
     });
@@ -52,10 +52,11 @@ export function Albero({ tel, disponibili, tick, larghezza, altezza }) {
 // ---------- 2. La mappa a nodi: i ruoli in fila, le IA sotto, i collegamenti che si accendono ----------
 
 export function Mappa({ tel, ruoli, disponibili, tick, larghezza }) {
-  const stretta = larghezza < 70;
-  const larg = stretta ? 11 : 15;
+  const stretta = larghezza < 86;
+  const larg = stretta ? 10 : 14;
+  const ultimo = RUOLI.length - 1;
   const nodo = (id) => {
-    const r = ruoli[id];
+    const r = ruoli[id] || { stato: 'attesa', ia: null };
     const nome = (stretta ? id.slice(0, 7) : id).toUpperCase();
     const col = r.stato === 'lavoro' ? C.rosa : r.stato === 'ok' ? C.verde : r.stato === 'errore' ? C.rosso : r.stato === 'saltato' ? C.scuro : C.grigio;
     const lampeggia = r.stato === 'lavoro' && tick % 2 === 0;
@@ -72,12 +73,12 @@ export function Mappa({ tel, ruoli, disponibili, tick, larghezza }) {
     const seg = [...base].map((ch, k) => (k === pos ? '═' : ch)).join('');
     return html`<${Text} color=${C.ciano}>${seg}▶<//>`;
   };
-  const riga1 = nodi.map((n, i) => html`<${Text} key=${i}><${Text} color=${n.col} bold>${n.nome.padEnd(larg)}<//>${i < 3 ? freccia(i) : ''}<//>`);
+  const riga1 = nodi.map((n, i) => html`<${Text} key=${i}><${Text} color=${n.col} bold>${n.nome.padEnd(larg)}<//>${i < ultimo ? freccia(i) : ''}<//>`);
   const riga2 = nodi.map((n, i) => {
     const vivo = RUOLI[i] === RUOLI[attivo];
-    return html`<${Text} key=${i}><${Text} color=${vivo ? C.rosa : C.scuro}>${(vivo ? (tick % 2 ? '  ▼' : '  │') : '  │').padEnd(larg + (i < 3 ? 4 : 0))}<//><//>`;
+    return html`<${Text} key=${i}><${Text} color=${vivo ? C.rosa : C.scuro}>${(vivo ? (tick % 2 ? '  ▼' : '  │') : '  │').padEnd(larg + (i < ultimo ? 4 : 0))}<//><//>`;
   });
-  const riga3 = nodi.map((n, i) => html`<${Text} key=${i}><${Text} color=${n.ia ? COLORE_IA[n.ia] : C.scuro} bold=${!!n.ia}>${('  ' + (n.ia ? nomeIA(disponibili, n.ia) : '—')).padEnd(larg + (i < 3 ? 4 : 0))}<//><//>`);
+  const riga3 = nodi.map((n, i) => html`<${Text} key=${i}><${Text} color=${n.ia ? COLORE_IA[n.ia] : C.scuro} bold=${!!n.ia}>${('  ' + (n.ia ? nomeIA(disponibili, n.ia) : '—')).padEnd(larg + (i < ultimo ? 4 : 0))}<//><//>`);
   return html`<${Box} flexDirection="column">
     <${Text}>${riga1}<//>
     <${Text}>${riga2}<//>
@@ -107,7 +108,7 @@ export function LineaDelTempo({ tel, disponibili, larghezza, secondi = 180 }) {
   const inizioFinestra = ora - secondi * 1000;
   const scala = larg / (secondi * 1000);
   const colonna = (t) => Math.max(0, Math.min(larg - 1, Math.floor((t - inizioFinestra) * scala)));
-  const colRuolo = { direttore: C.ciano, pianificatore: C.viola, esecutore: C.rosa, revisore: C.giallo, chat: C.gesso };
+  const colRuolo = { direttore: C.ciano, pianificatore: C.viola, esecutore: C.rosa, operatore: '#FF9F1C', revisore: C.giallo, chat: C.gesso, catalogatore: C.grigio, memorista: C.grigio };
   const corsie = Object.values(disponibili).map((d) => {
     const celle = Array(larg).fill(null);
     for (const c of tel.chiamate) {
@@ -125,6 +126,6 @@ export function LineaDelTempo({ tel, disponibili, larghezza, secondi = 180 }) {
       ${tratti(celle).map((t, k) => html`<${Text} key=${k} color=${t.col}>${t.testo}<//>`)}
     <//>`)}
     <${Text} color=${C.grigio}>${'        '}${asse}<//>
-    <${Text} color=${C.grigio}>${'        '}<${Text} color=${C.ciano}>█<//> direttore  <${Text} color=${C.viola}>█<//> pianificatore  <${Text} color=${C.rosa}>█<//> esecutore  <${Text} color=${C.giallo}>█<//> revisore  <${Text} color=${C.rosso}>█<//> errore<//>
+    <${Text} color=${C.grigio} wrap="truncate-end">${'        '}<${Text} color=${C.ciano}>█<//> direttore  <${Text} color=${C.viola}>█<//> pianificatore  <${Text} color=${C.rosa}>█<//> esecutore  <${Text} color="#FF9F1C">█<//> operatore  <${Text} color=${C.giallo}>█<//> revisore  <${Text} color=${C.rosso}>█<//> errore<//>
   <//>`;
 }

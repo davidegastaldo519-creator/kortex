@@ -1,7 +1,7 @@
 {
   "name": "kortex",
-  "version": "1.3.2",
-  "description": "Una mente, tante intelligenze: orchestratore di IA da terminale (Claude Code, Codex, Gemini CLI, Ollama)",
+  "version": "2.0.0",
+  "description": "Una mente, tante intelligenze: orchestratore di IA da terminale (Claude Code, Codex, Gemini CLI, Ollama) con teschio 3D, compiti in parallelo, operatore, mouse e suoni",
   "type": "module",
   "bin": {
     "kortex": "bin/kortex.js"

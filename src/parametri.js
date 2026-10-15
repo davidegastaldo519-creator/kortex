@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import os from 'node:os';
 import { FILE_CONFIG } from './config.js';
 
 // Ogni parametro della plancia: cosa regola e perché, in parole semplici.
@@ -6,6 +7,10 @@ export const PARAMETRI = [
   {
     chiave: 'autonomia', nome: 'Autonomia', tipo: 'scelta', valori: ['prudente', 'totale'],
     spiega: 'PRUDENTE: le IA modificano i file del progetto ma non lanciano comandi. TOTALE: fanno tutto da sole, comandi compresi (npm install, script...). Usa TOTALE solo in cartelle di progetto e con un backup.',
+  },
+  {
+    chiave: 'parallelo', nome: 'Compiti in parallelo', tipo: 'numero', min: 1, max: 4, passo: 1,
+    spiega: 'Quanti compiti possono lavorare INSIEME quando non dipendono l\'uno dall\'altro, su IA diverse o sulla stessa. 1 = uno alla volta. Più in parallelo = più veloce, ma sull\'HP a 2 core pesa.',
   },
   {
     chiave: 'maxCompiti', nome: 'Compiti massimi', tipo: 'numero', min: 1, max: 8, passo: 1,
@@ -18,6 +23,10 @@ export const PARAMETRI = [
   {
     chiave: 'usaRevisore', nome: 'Revisione', tipo: 'sino',
     spiega: 'Se accesa, un\'IA controlla il lavoro fatto. È il secondo paio d\'occhi: spegnila solo per cose banali.',
+  },
+  {
+    chiave: 'revisoreVerifica', nome: 'Revisore esegue test', tipo: 'sino',
+    spiega: 'Se acceso, il revisore può LANCIARE i test o il programma per verificare davvero (node file.js, python3, npm test). Non modifica mai i file. Spento = controlla solo leggendo.',
   },
   {
     chiave: 'revisoreIndipendente', nome: 'Revisore diverso', tipo: 'sino',
@@ -40,8 +49,16 @@ export const PARAMETRI = [
     spiega: 'Quante righe del diario di progetto legge il direttore prima di decidere. Più memoria = più contesto, ma prompt più lunghi.',
   },
   {
-    chiave: 'animazioni', nome: 'Animazioni', tipo: 'scelta', valori: ['piena', 'leggera', 'spenta'],
-    spiega: 'Quanto si muove l\'interfaccia. Su un PC lento, LEGGERA o SPENTA lasciano più CPU alle IA.',
+    chiave: 'grafica', nome: 'Grafica', tipo: 'scelta', valori: ['auto', 'piena', 'leggera', 'spenta'],
+    spiega: 'AUTO misura il PC all\'avvio e sceglie da sola. PIENA: teschio 3D, neuroni, transizioni. LEGGERA: tutto fermo tranne l\'essenziale, lascia la CPU alle IA. SPENTA: nessuna animazione.',
+  },
+  {
+    chiave: 'suoni', nome: 'Suoni', tipo: 'sino',
+    spiega: 'Suoni brevi quando un compito finisce, quando arriva una notifica o un errore, e nella schermata iniziale. Li crea KORTEX stesso. /suoni li accende e spegne al volo.',
+  },
+  {
+    chiave: 'mouse', nome: 'Mouse', tipo: 'sino',
+    spiega: 'Clic su pagine, schede, voci e pulsanti; rotella per scorrere. Con il mouse acceso, per selezionare testo nel terminale tieni premuto SHIFT mentre trascini.',
   },
   {
     chiave: 'tema', nome: 'Tema di colore', tipo: 'scelta', valori: ['neon', 'fuoco', 'ghiaccio', 'matrix'],
@@ -54,17 +71,18 @@ export const PARAMETRI = [
   { chiave: 'titolare.direttore', ruolo: 'direttore', nome: 'Titolare Direttore', tipo: 'titolare', spiega: 'Quale IA divide il lavoro. Le altre restano come riserva, in ordine.' },
   { chiave: 'titolare.pianificatore', ruolo: 'pianificatore', nome: 'Titolare Pianificatore', tipo: 'titolare', spiega: 'Quale IA scrive i piani. Le altre restano come riserva.' },
   { chiave: 'titolare.esecutore', ruolo: 'esecutore', nome: 'Titolare Esecutore', tipo: 'titolare', spiega: 'Quale IA scrive davvero i file. Solo Claude e Codex possono farlo.' },
+  { chiave: 'titolare.operatore', ruolo: 'operatore', nome: 'Titolare Operatore', tipo: 'titolare', spiega: 'Quale IA lancia comandi, test e script dentro il progetto quando il direttore crea un compito "comando".' },
   { chiave: 'titolare.revisore', ruolo: 'revisore', nome: 'Titolare Revisore', tipo: 'titolare', spiega: 'Quale IA controlla il lavoro. Meglio se diversa dall\'esecutore.' },
   { chiave: 'titolare.memorista', ruolo: 'memorista', nome: 'Titolare Memorista', tipo: 'titolare', spiega: 'Quale IA aggiorna la memoria dopo ogni richiesta. Gemini va benissimo: è un lavoro di riassunto.' },
 ];
 
 // Mappature pronte, dalla più leggera alla più profonda.
 export const MAPPATURE = [
-  { nome: 'LAMPO', uso: 'domande, ritocchi di una riga', valori: { maxCompiti: 1, usaPianificatore: false, usaRevisore: false, maxCorrezioni: 0, timeoutSecondi: 300 } },
-  { nome: 'AGILE', uso: 'piccole modifiche, un file', valori: { maxCompiti: 2, usaPianificatore: false, usaRevisore: true, maxCorrezioni: 0, timeoutSecondi: 600 } },
-  { nome: 'STANDARD', uso: 'il lavoro di tutti i giorni', valori: { maxCompiti: 3, usaPianificatore: true, usaRevisore: true, maxCorrezioni: 1, timeoutSecondi: 900 } },
-  { nome: 'ACCURATO', uso: 'funzioni nuove, più file', valori: { maxCompiti: 5, usaPianificatore: true, usaRevisore: true, maxCorrezioni: 2, timeoutSecondi: 1200 } },
-  { nome: 'PROFONDO', uso: 'progetti interi, riorganizzazioni', valori: { maxCompiti: 8, usaPianificatore: true, usaRevisore: true, maxCorrezioni: 3, timeoutSecondi: 1800 } },
+  { nome: 'LAMPO', uso: 'domande, ritocchi di una riga', valori: { maxCompiti: 1, parallelo: 1, usaPianificatore: false, usaRevisore: false, maxCorrezioni: 0, timeoutSecondi: 300 } },
+  { nome: 'AGILE', uso: 'piccole modifiche, un file', valori: { maxCompiti: 2, parallelo: 2, usaPianificatore: false, usaRevisore: true, maxCorrezioni: 0, timeoutSecondi: 600 } },
+  { nome: 'STANDARD', uso: 'il lavoro di tutti i giorni', valori: { maxCompiti: 3, parallelo: 2, usaPianificatore: true, usaRevisore: true, maxCorrezioni: 1, timeoutSecondi: 900 } },
+  { nome: 'ACCURATO', uso: 'funzioni nuove, più file', valori: { maxCompiti: 5, parallelo: 2, usaPianificatore: true, usaRevisore: true, maxCorrezioni: 2, timeoutSecondi: 1200 } },
+  { nome: 'PROFONDO', uso: 'progetti interi, riorganizzazioni', valori: { maxCompiti: 8, parallelo: 3, usaPianificatore: true, usaRevisore: true, maxCorrezioni: 3, timeoutSecondi: 1800 } },
 ];
 
 export function leggi(config, p) {
@@ -102,6 +120,7 @@ export function cambia(config, p, verso) {
     if (l?.length > 1) config.ruoli[p.ruolo] = verso > 0 ? [...l.slice(1), l[0]] : [l[l.length - 1], ...l.slice(0, -1)];
   }
   config.mappa = 'PERSONALIZZATA';
+  if (p.chiave === 'grafica') applicaGrafica(config);
 }
 
 export function applicaMappatura(config, i) {
@@ -110,6 +129,32 @@ export function applicaMappatura(config, i) {
   Object.assign(config, m.valori);
   config.mappa = m.nome;
   return m;
+}
+
+// Misura quanto è veloce il PC (una volta per avvio) e decide la grafica effettiva.
+let potenzaMisurata = null;
+export function misuraPotenza() {
+  if (potenzaMisurata !== null) return potenzaMisurata;
+  // tre giri, vale il migliore: il primo paga la compilazione del codice, non la velocità del PC
+  let ms = Infinity;
+  let acc = 0;
+  for (let giro = 0; giro < 3; giro++) {
+    const t0 = performance.now();
+    for (let i = 0; i < 400000; i++) acc += Math.sqrt(i * 0.37 + 1) * Math.sin(i * 0.001);
+    ms = Math.min(ms, performance.now() - t0);
+  }
+  const core = os.cpus().length || 1;
+  potenzaMisurata = { ms, core, lento: ms > 9 || (core <= 2 && ms > 6.5), acc };
+  return potenzaMisurata;
+}
+
+// config.grafica è la scelta dell'utente (auto/piena/leggera/spenta); config.animazioni è quella effettiva che il codice legge.
+export function applicaGrafica(config) {
+  const scelta = ['auto', 'piena', 'leggera', 'spenta'].includes(config.grafica) ? config.grafica : 'auto';
+  config.grafica = scelta;
+  if (scelta === 'auto') config.animazioni = process.env.TERMUX_VERSION || misuraPotenza().lento ? 'leggera' : 'piena';
+  else config.animazioni = scelta;
+  return config.animazioni;
 }
 
 export function salvaConfig(config) {

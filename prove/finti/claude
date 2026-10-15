@@ -1,0 +1,57 @@
+#!/usr/bin/env python3
+# Un finto Claude Code per le prove: risponde come farebbe lui, in stream-json, e fa davvero qualche lavoro sui file.
+import sys, json, time, os, re, random, subprocess
+args = sys.argv[1:]
+if '--version' in args:
+    print('2.1.300 (Claude Code)'); sys.exit(0)
+prompt = ''
+for i, a in enumerate(args):
+    if a == '-p' and i + 1 < len(args): prompt = args[i + 1]
+sid = 'sess-' + str(random.randint(1000, 9999))
+def ev(o): print(json.dumps(o), flush=True)
+def testo(t): ev({'type': 'assistant', 'session_id': sid, 'message': {'content': [{'type': 'text', 'text': t}]}})
+def strumento(nome, inp): ev({'type': 'assistant', 'session_id': sid, 'message': {'content': [{'type': 'tool_use', 'name': nome, 'input': inp}]}})
+ev({'type': 'system', 'session_id': sid})
+time.sleep(0.4 + random.random() * 0.8)
+risultato = ''
+if 'Sei il DIRETTORE' in prompt:
+    if 'ambigua' in prompt and 'domanda' in prompt and 'ha scelto' not in prompt and 'nessuna risposta' not in prompt:
+        risultato = json.dumps({'domanda': 'Che tipo di saluto vuoi nei file?', 'opzioni': ['formale', 'amichevole', 'in inglese']})
+    else:
+        risultato = json.dumps({'compiti': [
+            {'titolo': 'Crea alfa.txt', 'descrizione': 'Crea il file alfa.txt con un saluto', 'tipo': 'codice', 'esecutore': 'claude', 'dipende': []},
+            {'titolo': 'Crea beta.txt', 'descrizione': 'Crea il file beta.txt con un saluto', 'tipo': 'codice', 'esecutore': 'codex', 'dipende': []},
+            {'titolo': 'Verifica i due file', 'descrizione': 'Esegui: cat alfa.txt beta.txt e riferisci', 'tipo': 'comando', 'esecutore': 'claude', 'dipende': [1, 2]},
+        ]})
+    testo(risultato)
+elif 'Sei il PIANIFICATORE' in prompt:
+    risultato = '1. Leggi il compito\n2. Fallo\n3. Riepiloga'
+    testo(risultato)
+elif "Sei l'ESECUTORE" in prompt:
+    m = re.search(r'file (\S+\.txt)', prompt)
+    nome = m.group(1) if m else 'file.txt'
+    strumento('Write', {'file_path': nome})
+    time.sleep(0.8)
+    with open(nome, 'w') as f: f.write('ciao da claude\n')
+    risultato = f'Ho creato {nome} con un saluto.'
+    testo(risultato)
+elif "Sei l'OPERATORE" in prompt:
+    m = re.search(r'Esegui: (.+?) e riferisci', prompt)
+    cmd = m.group(1) if m else 'ls'
+    strumento('Bash', {'command': cmd})
+    out = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+    risultato = f'Comando lanciato: {cmd}\nEsito: {"riuscito" if out.returncode == 0 else "fallito"}\n{out.stdout}{out.stderr}'
+    testo(risultato)
+elif 'Sei il REVISORE' in prompt:
+    risultato = 'ESITO: OK\n- tutto a posto'
+    testo(risultato)
+elif 'Sei il MEMORISTA' in prompt:
+    risultato = json.dumps({'riassunto': 'Progetto di prova con file di saluto.', 'soluzione': None, 'preferenze': []})
+    testo(risultato)
+elif 'Sei il CATALOGATORE' in prompt:
+    risultato = json.dumps({'categoria': 'note', 'titolo': 'Nota di prova', 'descrizione': 'una nota', 'tag': ['prova']})
+    testo(risultato)
+else:
+    risultato = 'OK'
+    testo(risultato)
+ev({'type': 'result', 'session_id': sid, 'result': risultato, 'total_cost_usd': 0.0123, 'is_error': False})
