@@ -187,7 +187,7 @@ kortex
 
 Da riga di comando: `kortex --check`, `kortex --prova`, `kortex --no-anim`, `kortex --leggera`, `kortex --aggiorna`, `kortex --versione`.
 
-Dentro la cartella del progetto (non dell'installazione) c'è anche `npm test`: lancia le prove automatiche di KORTEX, che controllano la lettura del JSON nelle risposte delle IA.
+Dentro la cartella del progetto (non dell'installazione) c'è anche `npm test`: lancia le prove automatiche di KORTEX, che controllano la lettura del JSON nelle risposte delle IA e il riconoscimento del limite di abbonamento.
 
 **Il numero in dollari in alto non è una spesa.** Claude Code riporta quanto costerebbe il lavoro a prezzi API, anche quando usi l'abbonamento a prezzo fisso. Pagheresti davvero solo se sul computer fosse impostata una chiave API (`ANTHROPIC_API_KEY`).
 

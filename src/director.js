@@ -210,10 +210,33 @@ export function estraiJson(testo) {
   if (daCodice.trovato) return daCodice.valore;
 
   // 2) scansione carattere per carattere, contando le graffe aperte e chiuse.
-  // Le graffe dentro una stringa fra virgolette doppie non si contano: un testo
-  // come "ciao { mondo" farebbe sballare il conto e il blocco non si chiuderebbe mai.
-  // Dentro una stringa, \" non la chiude e \\ è solo una barra, quindi il carattere
-  // che viene dopo torna normale.
+  // Si guarda il testo due volte, con due regole diverse per le virgolette, perché
+  // nessuna delle due da sola copre tutti i modi in cui l'IA sporca la risposta:
+  // la prima tiene buone tutte le virgolette, la seconda conta solo quelle dentro
+  // le graffe (così una virgoletta spaiata nel discorso, per esempio `15" di
+  // schermo` per dire i pollici, non manda a monte il conto).
+  const blocchi = blocchiBilanciati(t, false);
+  const blocchiSenzaVirgoletteFuori = blocchiBilanciati(t, true);
+
+  // 3) si provano tutti i blocchi bilanciati trovati, dall'ultimo al primo:
+  // l'IA di solito mette il risultato buono in fondo, dopo le spiegazioni.
+  // Prima quelli della regola di sempre, così i casi che già funzionavano danno
+  // esattamente lo stesso risultato di prima; gli altri sono solo un recupero in più.
+  for (const elenco of [blocchi, blocchiSenzaVirgoletteFuori]) {
+    for (let i = elenco.length - 1; i >= 0; i--) {
+      try { return JSON.parse(elenco[i]); } catch { /* non valido: si prova quello prima */ }
+    }
+  }
+  return null;
+}
+
+// Trova i pezzi di testo che cominciano con { e finiscono con la graffa che li chiude.
+// Le graffe dentro una stringa fra virgolette doppie non si contano: un testo come
+// "ciao { mondo" farebbe sballare il conto e il blocco non si chiuderebbe mai.
+// Dentro una stringa, \" non la chiude e \\ è solo una barra, quindi il carattere che
+// viene dopo torna normale.
+// Con `virgoletteSoloDentro` le virgolette fuori dalle graffe vengono ignorate del tutto.
+function blocchiBilanciati(t, virgoletteSoloDentro) {
   const blocchi = [];
   let inizio = -1;
   let graffe = 0;
@@ -227,20 +250,14 @@ export function estraiJson(testo) {
       else if (ch === '"') dentroStringa = false;
       continue;
     }
-    if (ch === '"') { dentroStringa = true; scappato = false; continue; }
+    if (ch === '"') { if (!virgoletteSoloDentro || graffe > 0) { dentroStringa = true; scappato = false; } continue; }
     if (ch === '{') { if (graffe === 0) inizio = i; graffe++; continue; }
     if (ch === '}' && graffe > 0) {
       graffe--;
       if (graffe === 0 && inizio >= 0) { blocchi.push(t.slice(inizio, i + 1)); inizio = -1; }
     }
   }
-
-  // 3) si provano tutti i blocchi bilanciati trovati, dall'ultimo al primo:
-  // l'IA di solito mette il risultato buono in fondo, dopo le spiegazioni.
-  for (let i = blocchi.length - 1; i >= 0; i--) {
-    try { return JSON.parse(blocchi[i]); } catch { /* non valido: si prova quello prima */ }
-  }
-  return null;
+  return blocchi;
 }
 
 function estraiCompiti(testo) {

@@ -75,3 +75,18 @@ test('con risposta vuota o mancante restituisce niente', () => {
   assert.equal(estraiJson(null), null);
   assert.equal(estraiJson(undefined), null);
 });
+
+// h) prima del JSON c'è una virgoletta spaiata (i pollici dello schermo):
+// contando tutte le virgolette il conto delle graffe sballava e non si trovava
+// più niente. Il secondo passaggio ignora le virgolette fuori dalle graffe.
+test('una virgoletta spaiata prima del JSON non lo nasconde', () => {
+  const testo = [
+    'Lo schermo è da 15" e il piano è:',
+    '{"compiti":[{"titolo":"misura lo schermo","tipo":"analisi"}]}',
+  ].join('\n');
+  const letto = estraiJson(testo);
+  assert.notEqual(letto, null);
+  assert.deepEqual(letto, {
+    compiti: [{ titolo: 'misura lo schermo', tipo: 'analisi' }],
+  });
+});

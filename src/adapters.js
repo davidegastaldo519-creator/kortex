@@ -1,8 +1,46 @@
 import { spawn } from 'node:child_process';
 
 const ANSI = /\x1b\[[0-9;?]*[A-Za-z]/g;
-// Frasi con cui le CLI segnalano che l'abbonamento ha finito il limite.
-const LIMITE = /rate.?limit|usage limit|limit reached|quota|too many requests|\b429\b|resource_exhausted/i;
+// Le sole frasi con cui le CLI dicono davvero che l'abbonamento ha finito il limite.
+// Sono frasi intere di proposito: una parola sola come "quota" compare anche nei discorsi.
+const FRASI_LIMITE = [
+  'usage limit',
+  'rate limit reached',
+  'rate_limit_exceeded',
+  "you've hit your",
+  'too many requests',
+  '429',
+  'resource_exhausted',
+  'quota exceeded',
+  'exceeded your current quota',
+];
+
+// Prende un valore qualunque e ne fa un testo: niente diventa stringa vuota,
+// un elenco di righe diventa righe separate.
+function testoDi(v) {
+  if (v === undefined || v === null) return '';
+  if (Array.isArray(v)) return v.join('\n');
+  return String(v);
+}
+
+// Tiene solo le ultime n righe di un testo.
+function ultimeRighe(v, n) {
+  const t = testoDi(v);
+  if (!t) return '';
+  return t.split('\n').slice(-n).join('\n');
+}
+
+// Dice se l'IA si è fermata perché l'abbonamento ha finito il limite.
+// Si guarda solo la fine di quello che ha scritto, e solo se il processo è uscito male:
+// Codex ripete in quello che scrive anche la richiesta e i suoi ragionamenti, quindi
+// una parola sola come "quota" faceva credere al limite anche con l'abbonamento libero.
+export function eLimitato(codice, errori, uscita) {
+  if (codice === 0) return false;
+  const testo = `${ultimeRighe(errori, 20)}\n${ultimeRighe(uscita, 20)}`.toLowerCase();
+  if (!testo.trim()) return false;
+  for (const frase of FRASI_LIMITE) if (testo.includes(frase)) return true;
+  return false;
+}
 // Una CLI che chiede di fare il login o una conferma non può andare avanti qui dentro.
 const CHIEDE_LOGIN = /Opening authentication page|Do you want to continue\? \[Y\/n\]|Please visit the following URL|sign in|log ?in to continue|IneligibleOrProjectId|trust this folder|Do you trust|\[y\/N\]|\(y\/n\)/i;
 
@@ -174,7 +212,7 @@ export function eseguiIA({ cfg, prompt, cwd, sessione, extra, modello, adddir, t
 
     proc.on('close', (codice) => {
       const uscita = (finale ?? testo).trim();
-      const limitato = LIMITE.test(errori) || (codice !== 0 && LIMITE.test(uscita));
+      const limitato = eLimitato(codice, errori, uscita);
       const ok = codice === 0 && !limitato && !bloccato && uscita.length > 0;
       const ultimaRiga = bloccato || errori.trim().split('\n').slice(-3).join(' ');
       fine({

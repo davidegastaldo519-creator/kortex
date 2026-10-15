@@ -1,6 +1,6 @@
 {
   "name": "kortex",
-  "version": "2.2.2",
+  "version": "2.2.3",
   "description": "Una mente, tante intelligenze: orchestratore di IA da terminale (Claude Code, Codex, Gemini CLI, Ollama) con teschio 3D, compiti in parallelo, operatore, mouse e suoni",
   "type": "module",
   "bin": {
@@ -13,7 +13,7 @@
     "start": "node bin/kortex.js",
     "check": "node bin/kortex.js --check",
     "prova": "node test/prova.mjs",
-    "test": "node --test test/estraiJson.test.mjs"
+    "test": "node --test \"test/*.test.mjs\""
   },
   "dependencies": {
     "figlet": "^1.7.0",
