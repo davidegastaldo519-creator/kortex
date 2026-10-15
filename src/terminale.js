@@ -72,7 +72,7 @@ export class Sessioni {
 
     if (cmd === 'clear' || cmd === 'pulisci') { s.righe = []; cb.fine(0); return; }
     if (INTERATTIVI.test(cmd)) {
-      cb.info('⚠ programma interattivo: qui non può funzionare, aprilo in un terminale normale (Ctrl+Alt+T).');
+      cb.info('△ programma interattivo: qui non può funzionare, aprilo in un terminale normale (Ctrl+Alt+T).');
       cb.fine(0);
       return;
     }

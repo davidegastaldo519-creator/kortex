@@ -80,6 +80,41 @@ EOF
 
   cp "$QUI/assets/kortex.svg" "$HOME/.local/share/icons/kortex.svg"
 
+  # Il font con le icone (Nerd Font): una volta sola. Senza, KORTEX usa simboli normali.
+  if command -v fc-list > /dev/null && ! fc-list : family 2> /dev/null | grep -qi "nerd font"; then
+    echo "== Font con le icone: JetBrainsMono Nerd Font =="
+    CARTELLA_FONT="$HOME/.local/share/fonts/JetBrainsMonoNerd"
+    mkdir -p "$CARTELLA_FONT"
+    if curl -fsSL --max-time 180 -o "$CARTELLA_FONT/font.tar.xz" https://github.com/ryanoasis/nerd-fonts/releases/latest/download/JetBrainsMono.tar.xz \
+       && tar -xJf "$CARTELLA_FONT/font.tar.xz" -C "$CARTELLA_FONT" 2> /dev/null; then
+      rm -f "$CARTELLA_FONT/font.tar.xz"
+      fc-cache -f "$HOME/.local/share/fonts" > /dev/null 2>&1 || true
+      echo "Font installato"
+    else
+      rm -rf "$CARTELLA_FONT"
+      echo "Font non scaricato (rete?): KORTEX userà i simboli normali. Riprova con kortex --aggiorna"
+    fi
+  fi
+  # Il terminale deve usare quel font: Ptyxis (GNOME) e qterminal (Lubuntu). Il font di prima resta segnato.
+  if fc-list : family 2> /dev/null | grep -qi "JetBrainsMono Nerd Font"; then
+    FONT_NERD="JetBrainsMono Nerd Font"
+    if command -v gsettings > /dev/null && gsettings list-keys org.gnome.Ptyxis 2> /dev/null | grep -qx font-name; then
+      ATTUALE=$(gsettings get org.gnome.Ptyxis font-name 2> /dev/null)
+      if ! echo "$ATTUALE" | grep -qi "nerd"; then
+        mkdir -p "$HOME/.config/kortex" && echo "ptyxis font-name $ATTUALE use-system-font $(gsettings get org.gnome.Ptyxis use-system-font 2> /dev/null)" >> "$HOME/.config/kortex/font-precedente.txt"
+        gsettings set org.gnome.Ptyxis use-system-font false
+        gsettings set org.gnome.Ptyxis font-name "$FONT_NERD 12"
+        echo "Ptyxis ora usa $FONT_NERD (il font di prima è segnato in ~/.config/kortex/font-precedente.txt)"
+      fi
+    fi
+    QINI="$HOME/.config/qterminal.org/qterminal.ini"
+    if [ -f "$QINI" ] && grep -q "^fontFamily=" "$QINI" && ! grep -qi "^fontFamily=.*nerd" "$QINI"; then
+      cp "$QINI" "$QINI.bak-kortex"
+      sed -i "s|^fontFamily=.*|fontFamily=$FONT_NERD|" "$QINI"
+      echo "qterminal ora usa $FONT_NERD (copia della configurazione: $QINI.bak-kortex)"
+    fi
+  fi
+
   # Ogni desktop ha il suo terminale. Ptyxis (Ubuntu 24.10+/GNOME) per primo: con --maximize apre la finestra grande.
   if command -v ptyxis > /dev/null; then TERM_CMD="ptyxis --new-window --maximize -x"
   elif command -v qterminal > /dev/null; then TERM_CMD="qterminal -e"

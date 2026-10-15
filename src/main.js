@@ -81,6 +81,8 @@ Configurazione: ${FILE_CONFIG}`);
   const { creaSuoni } = await import('./suoni.js');
   const { migraPreferenze, preferenze } = await import('./memoria.js');
   applicaTema(config, C);
+  const { applicaIcone } = await import('./icone.js');
+  applicaIcone(config);
   if (argv.includes('--leggera')) config.animazioni = 'leggera'; else applicaGrafica(config);
   const suoni = creaSuoni(config);
   try { migraPreferenze(); } catch { /* */ }

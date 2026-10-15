@@ -5,21 +5,22 @@ export const GUIDA = `
 KORTEX fa lavorare insieme più intelligenze artificiali sullo stesso progetto: Claude Code, Codex, Gemini e Ollama. Usa le CLI già installate e collegate ai tuoi abbonamenti, quindi niente chiavi API e niente costi a consumo.
 Tu scrivi cosa vuoi ottenere. Lui divide il lavoro, lo assegna all'IA più adatta, lo fa controllare da un'altra, e tiene un diario per ricordarsi tutto la volta dopo.
 
-# LE SEI PAGINE
+# LE SETTE PAGINE
 Si cambia pagina con TAB (avanti) e SHIFT+TAB (indietro). ESC torna sempre a LAVORO.
 - LAVORO: a sinistra il terminale, a destra le schede della squadra. Due righe di comando in basso: $ per il terminale, › per le IA. CTRL+T sposta il cursore dall'una all'altra.
 - PROGETTI: i tuoi progetti, le chat di ognuno e i punti di ripristino.
 - DATABASE: la memoria di tutti i progetti: manuali, codice, documenti, immagini, note. Le IA la consultano da sole.
 - CONTROLLO: la plancia della macchina. Regoli ogni parametro, scegli una mappatura, guardi i grafici in tempo reale.
 - STUDIO: la lavagna. Ci trovi il ragionamento dell'ultima richiesta — piano, passi, verdetto — e i tuoi appunti.
+- STATISTICHE: il tuo lavoro in numeri: richieste, compiti riusciti, file toccati, tempo delle IA, tempo risparmiato, carburante di ogni abbonamento e gli ultimi 14 giorni.
 - GUIDA: questa pagina.
 
 # LE SCHEDE DI LAVORO
 A destra, CTRL+N le fa girare (o /scheda 1..5, o un clic sul nome):
-- AGENTI: il quadro della squadra, dall'alto in basso. La RICHIESTA con il tempo e quanti compiti lavorano insieme. I COMPITI, uno per riga, con le tre fasi P (piano), L (lavoro dell'esecutore o dell'operatore) e V (verifica del revisore): ● fatto, ✖ errore, ⟳ riserva, un numero se è stata corretta più volte, ←1,2 se aspetta altri compiti; poi chi l'ha fatto e quanto ci ha messo. La SQUADRA, un ruolo per riga: quale IA lo copre, cosa sta facendo, su quale compito, l'ultimo strumento usato, e quando è fermo le riserve pronte. L'ATTIVITÀ IN DIRETTA: ogni file letto o scritto e ogni comando lanciato, con ora, IA, ruolo e compito. La CODA delle richieste in attesa e, se c'è posto, la LINEA DEL TEMPO.
-- OUTPUT: tutto quello che scrivono le IA, scorrevole. Quando più compiti lavorano insieme, ogni riga porta il numero del suo compito (│1, │2…).
-- REGISTRO: ogni evento con ora, IA col suo colore, ruolo e simbolo. ▶ avvio, ▸ strumento, ✔ finito, ✖ errore, ⟳ riserva, ⇉ compiti in parallelo. CTRL+F cambia il filtro.
-- DIFF: le modifiche ai file del progetto, colorate (verde aggiunte, rosso righe tolte, giallo file nuovi), aggiornate mentre le IA lavorano. Serve git nel progetto.
+- AGENTI: il quadro della squadra, dall'alto in basso. La RICHIESTA con il tempo e quanti compiti lavorano insieme. I COMPITI, uno per riga, con le tre fasi P (piano), L (lavoro dell'esecutore o dell'operatore) e V (verifica del revisore): ● fatto, ✗ errore, » riserva, un numero se è stata corretta più volte, ←1,2 se aspetta altri compiti; poi chi l'ha fatto e quanto ci ha messo. La SQUADRA, un ruolo per riga: quale IA lo copre, cosa sta facendo, su quale compito, l'ultimo strumento usato, e quando è fermo le riserve pronte. L'ATTIVITÀ IN DIRETTA: ogni file letto o scritto e ogni comando lanciato, con ora, IA, ruolo e compito. La CODA delle richieste in attesa e, se c'è posto, la LINEA DEL TEMPO.
+- OUTPUT: una BOLLA per ogni IA che parla, col suo colore, il ruolo, il compito e il tempo; dentro, il testo è formattato (titoli, grassetto, elenchi, tabelle, codice colorato). /bolle off torna al testo semplice.
+- REGISTRO: ogni evento con ora, IA col suo colore, ruolo e simbolo. ▸ avvio, ▸ strumento, ✓ finito, ✗ errore, » riserva, ‖ compiti in parallelo. CTRL+F cambia il filtro.
+- DIFF: la REVISIONE file per file. A sinistra i file cambiati dall'ultima richiesta, a destra le modifiche del file scelto (verde aggiunte, rosso tolte). FRECCIA SU/GIÙ sceglie il file, INVIO lo accetta, CTRL+R lo riporta com'era prima della richiesta. I pulsanti in alto fanno anche "accetta tutto" e "rifiuta tutto". Funziona anche senza git, grazie ai punti di ripristino.
 - FILE: i compiti in corso, con le dipendenze, e i file cambiati nel progetto.
 Sopra le schede c'è la fila delle IA con i loro cervelli e cosa stanno facendo.
 
@@ -123,6 +124,8 @@ Il risveglio: il battito del cuore, le onde cerebrali, il cervello a circuiti ch
 - CTRL+O: screenshot da allegare
 - CTRL+F: filtro del registro
 - CTRL+K: mentre la squadra lavora, salta l'IA che sta lavorando adesso e passa alla riserva (utile se la vedi ferma da troppo)
+- CTRL+P: la TAVOLOZZA dei comandi: scrivi due lettere e trovi pagine, schede, temi, profili, mappature, progetti, chat, comandi e voci del database
+- CTRL+R: nella scheda DIFF, riporta il file scelto com'era
 - CTRL+C: ferma il comando della shell; se non ce n'è nessuno, esce
 
 # I COMANDI
@@ -148,10 +151,31 @@ Si scrivono nella barra in basso, iniziano con la barra /.
 - /chat nuova [titolo] · /chat apri N: le chat del progetto
 - /ripristina [ID]: punti di ripristino
 - /db: tutti i comandi del database (/db scansiona cataloga i file arrivati da soli)
-- /tema neon | fuoco | ghiaccio | matrix: colori di tutto KORTEX
+- /tema neon | fuoco | ghiaccio | matrix | tokyonight | dracula | synthwave | vaporwave: colori di tutto KORTEX
+- /profilo programmatore | minecraft | studio | creativo: prepara KORTEX per quel tipo di lavoro (/profilo da solo li elenca)
+- /statistiche: apre la pagina STATISTICHE
+- /bolle on | off: OUTPUT a bolle o testo semplice
+- /icone auto | on | off: icone del Nerd Font o simboli normali
+- /novita · /tutorial: riapre le novità della versione o il giro guidato
 - /ricorda testo · /dimentica N · /memoria: la memoria
 - /pulisci: svuota l'output
 - /esci: esce
+
+# LA BARRA DI STATO
+L'ultima riga, a blocchi colorati: a sinistra la modalità (SQUADRA o CHAT) e il profilo, il ramo git con quanti file sono cambiati (±3), lo stato del lavoro con la barra di avanzamento. In mezzo un consiglio, o cosa sta facendo la squadra. A destra il CARBURANTE di ogni IA, quante richieste sono in coda e l'ora.
+
+# IL CARBURANTE
+Gli abbonamenti contano l'uso a finestre di 5 ore. KORTEX conta le chiamate a ogni IA nelle ultime 5 ore e le confronta con un limite: all'inizio è una STIMA (la ~ accanto alla barra), poi la prima volta che un'IA si ferma davvero per limite raggiunto KORTEX si segna il numero giusto e da lì usa quello. Sotto il 20% ti avvisa; quando un'IA è a secco lavora la riserva. Puoi fissare i limiti a mano in config.json, voce "limiti5h" (esempio: {"claude": 200}).
+
+# I PROFILI
+Un profilo prepara tutto per un tipo di lavoro, con /profilo o con CTRL+P:
+- PROGRAMMATORE: squadra completa, revisore che esegue i test, scheda DIFF in primo piano.
+- MINECRAFT: terminale sul server SSH in primo piano, l'operatore lancia i comandi del server e fa sempre una copia prima di toccare i file.
+- STUDIO: chat diretta con una sola IA, risposte chiare e didattiche.
+- CREATIVO: giochi e grafica, anteprime HTML in un file solo, immagini salvate nel database.
+
+# LE ICONE
+Con il font JetBrainsMono Nerd Font KORTEX usa icone vere e le frecce della barra. kortex --aggiorna lo installa da solo e lo imposta nel terminale (il font di prima è salvato in ~/.config/kortex/font-precedente.txt). Senza il font usa simboli normali. /icone off le spegne.
 
 # COME LAVORA LA SQUADRA
 - DIRETTORE: legge la richiesta e il diario, divide il lavoro in compiti, sceglie chi li fa e dice quali compiti dipendono da quali.

@@ -8,8 +8,8 @@ const nomeIA = (disponibili, id) => disponibili[id]?.nome || id;
 
 function esitoChiamata(c, tick) {
   if (!c.fine) return [SPIN[tick % SPIN.length], C.rosa];
-  if (c.limitato) return ['⟳', C.giallo];
-  return c.ok ? ['✔', C.verde] : ['✖', C.rosso];
+  if (c.limitato) return ['»', C.giallo];
+  return c.ok ? ['✓', C.verde] : ['✗', C.rosso];
 }
 
 // ---------- 1. L'albero: richiesta → compiti → ruoli → strumenti ----------
@@ -21,7 +21,7 @@ export function Albero({ tel, disponibili, tick, larghezza, altezza }) {
     righe.push(html`<${Text} key="v" color=${C.grigio}>nessuna richiesta ancora: scrivi cosa vuoi fare nella riga › a destra<//>`);
   } else {
     const chiamate = tel.chiamate.filter((c) => c.richiesta === r.n);
-    righe.push(html`<${Text} key="r" wrap="truncate-end"><${Text} color=${C.ciano} bold>▣ <//><${Text} color=${C.gesso}>${accorcia(r.testo, larghezza - 4)}<//><//>`);
+    righe.push(html`<${Text} key="r" wrap="truncate-end"><${Text} color=${C.ciano} bold>◈ <//><${Text} color=${C.gesso}>${accorcia(r.testo, larghezza - 4)}<//><//>`);
     const rigaChiamata = (c, prefisso, ultimo) => {
       const [ic, col] = esitoChiamata(c, tick);
       righe.push(html`<${Text} key=${'c' + c.inizio + c.ia + c.ruolo} wrap="truncate-end">
@@ -40,7 +40,7 @@ export function Albero({ tel, disponibili, tick, larghezza, altezza }) {
     direttore.forEach((c) => rigaChiamata(c, '', r.compiti.length === 0));
     r.compiti.forEach((comp, i) => {
       const ultimo = i === r.compiti.length - 1;
-      const stato = { attesa: ['○', C.grigio], lavoro: [SPIN[tick % SPIN.length], C.rosa], ok: ['✔', C.verde], avviso: ['⚠', C.giallo], errore: ['✖', C.rosso] }[comp.stato] || ['○', C.grigio];
+      const stato = { attesa: ['○', C.grigio], lavoro: [SPIN[tick % SPIN.length], C.rosa], ok: ['✓', C.verde], avviso: ['△', C.giallo], errore: ['✗', C.rosso] }[comp.stato] || ['○', C.grigio];
       righe.push(html`<${Text} key=${'k' + i} wrap="truncate-end"><${Text} color=${C.scuro}>${ultimo ? '└─ ' : '├─ '}<//><${Text} color=${stato[1]}>${stato[0]} <//><${Text} color=${C.ciano} bold>${i + 1}. ${accorcia(comp.titolo, larghezza - 10)}<//>${comp.dipende?.length ? html`<${Text} color=${C.scuro}>  ← ${comp.dipende.join(',')}<//>` : ''}<//>`);
       const mie = chiamate.filter((c) => c.compito === i);
       mie.forEach((c, k) => rigaChiamata(c, ultimo ? '   ' : '│  ', k === mie.length - 1));
@@ -60,7 +60,7 @@ export function Mappa({ tel, ruoli, disponibili, tick, larghezza }) {
     const nome = (stretta ? id.slice(0, 7) : id).toUpperCase();
     const col = r.stato === 'lavoro' ? C.rosa : r.stato === 'ok' ? C.verde : r.stato === 'errore' ? C.rosso : r.stato === 'saltato' ? C.scuro : C.grigio;
     const lampeggia = r.stato === 'lavoro' && tick % 2 === 0;
-    return { nome: (lampeggia ? '▶' : '▪') + ' ' + nome, col, ia: r.ia };
+    return { nome: (lampeggia ? '▸' : '■') + ' ' + nome, col, ia: r.ia };
   };
   const nodi = RUOLI.map(nodo);
   const attivo = RUOLI.findIndex((id) => ruoli[id].stato === 'lavoro');
@@ -68,10 +68,10 @@ export function Mappa({ tel, ruoli, disponibili, tick, larghezza }) {
     // il collegamento verso il ruolo attivo pulsa: i segmenti scorrono
     const vivo = attivo === i + 1 || (attivo < 0 && ruoli[RUOLI[i + 1]]?.stato === 'ok');
     const base = '─'.repeat(3);
-    if (!vivo) return html`<${Text} color=${C.scuro}>${base}▶<//>`;
+    if (!vivo) return html`<${Text} color=${C.scuro}>${base}▸<//>`;
     const pos = tick % 3;
     const seg = [...base].map((ch, k) => (k === pos ? '═' : ch)).join('');
-    return html`<${Text} color=${C.ciano}>${seg}▶<//>`;
+    return html`<${Text} color=${C.ciano}>${seg}▸<//>`;
   };
   const riga1 = nodi.map((n, i) => html`<${Text} key=${i}><${Text} color=${n.col} bold>${n.nome.padEnd(larg)}<//>${i < ultimo ? freccia(i) : ''}<//>`);
   const riga2 = nodi.map((n, i) => {
@@ -94,7 +94,7 @@ function tratti(celle) {
   for (let x = 0; x < celle.length; x++) {
     const c = celle[x];
     const col = c ? c.col : C.scuro;
-    const ch = c ? (c.aperto && x === celle.length - 1 ? '▶' : '█') : '·';
+    const ch = c ? (c.aperto && x === celle.length - 1 ? '▸' : '█') : '·';
     const ultimo = out[out.length - 1];
     if (ultimo && ultimo.col === col) ultimo.testo += ch;
     else out.push({ col, testo: ch });
@@ -157,8 +157,8 @@ function fase(chiamate, ruoli) {
 function simboloFase(f, tick, saltata) {
   if (f.stato === 'lavoro') return [SPIN[tick % SPIN.length], C.rosa];
   if (f.stato === 'ok') return ['●', C.verde];
-  if (f.stato === 'errore') return ['✖', C.rosso];
-  if (f.stato === 'riserva') return ['⟳', C.giallo];
+  if (f.stato === 'errore') return ['✗', C.rosso];
+  if (f.stato === 'riserva') return ['»', C.giallo];
   return saltata ? ['–', C.scuro] : ['○', C.scuro];
 }
 
@@ -178,7 +178,7 @@ function RigaCompito({ c, i, chiamate, tick, larghezza, disponibili }) {
   const lavoro = fase(mie, ['esecutore', 'operatore']);
   const verifica = fase(mie, ['revisore']);
   const finito = ['ok', 'avviso', 'errore', 'saltato'].includes(c.stato);
-  const ICONA = { attesa: ['○', C.grigio], lavoro: [SPIN[tick % SPIN.length], C.rosa], ok: ['✔', C.verde], avviso: ['⚠', C.giallo], errore: ['✖', C.rosso], saltato: ['·', C.scuro] };
+  const ICONA = { attesa: ['○', C.grigio], lavoro: [SPIN[tick % SPIN.length], C.rosa], ok: ['✓', C.verde], avviso: ['△', C.giallo], errore: ['✗', C.rosso], saltato: ['·', C.scuro] };
   const [ic, col] = ICONA[c.stato] || ICONA.attesa;
   const fasi = [[piano, finito && piano.stato === 'vuota'], [lavoro, false], [verifica, finito && verifica.stato === 'vuota']];
   // il filo tra una fase e l'altra si accende quando la fase prima è finita bene
@@ -213,13 +213,13 @@ function RigaRuolo({ ruolo, chiamate, ruoli, config, disponibili, tick, larghezz
     stato = `${SPIN[tick % SPIN.length]} al lavoro`;
     colStato = C.rosa;
     const compiti = aperte.map((c) => c.compito).filter((x) => x !== null && x !== undefined);
-    dettaglio = `${compiti.length ? (aperte.length > 1 ? `⇉ compiti ${compiti.map((x) => x + 1).join(',')}` : `compito ${compiti[0] + 1}`) : ''} · ${secondi(Date.now() - Math.min(...aperte.map((c) => c.inizio)))}`;
+    dettaglio = `${compiti.length ? (aperte.length > 1 ? `‖ compiti ${compiti.map((x) => x + 1).join(',')}` : `compito ${compiti[0] + 1}`) : ''} · ${secondi(Date.now() - Math.min(...aperte.map((c) => c.inizio)))}`;
     const strum = aperte.flatMap((c) => c.strumenti).slice(-1)[0];
     if (strum) dettaglio += `  ▸ ${strum}`;
   } else if (ultima) {
     const ok = ultima.ok;
-    stato = ok ? `✔ fatto ×${mie.length}` : ultima.limitato ? '⟳ al limite' : '✖ errore';
-    if (ok && mie.length === 1) stato = '✔ fatto';
+    stato = ok ? `✓ fatto ×${mie.length}` : ultima.limitato ? '» al limite' : '✗ errore';
+    if (ok && mie.length === 1) stato = '✓ fatto';
     colStato = ok ? C.verde : ultima.limitato ? C.giallo : C.rosso;
     dettaglio = `${secondi(mie.reduce((a, c) => a + ((c.fine || Date.now()) - c.inizio), 0))} in tutto`;
   } else if (!catena.length) {
@@ -252,11 +252,11 @@ export function PannelloAgenti({ h, w, tel, ruoli, disponibili, tick, coda = [],
     const durata = secondi((r.fine || Date.now()) - r.inizio);
     const insieme = chiamate.filter((c) => !c.fine && c.compito !== null && c.compito !== undefined);
     const paralleli = new Set(insieme.map((c) => c.compito)).size;
-    const nota = `${r.fine ? '✔ finita in ' : '⏱ '}${durata} · ${compiti.length || '…'} compit${compiti.length === 1 ? 'o' : 'i'}${paralleli > 1 ? ` · ⇉ ${paralleli} insieme` : ''}`;
+    const nota = `${r.fine ? '✓ finita in ' : '⊙ '}${durata} · ${compiti.length || '…'} compit${compiti.length === 1 ? 'o' : 'i'}${paralleli > 1 ? ` · ‖ ${paralleli} insieme` : ''}`;
     const spazio = Math.max(10, w - nota.length - 4);
-    metti('r', html`<${Text} wrap="truncate-end"><${Text} color=${r.fine ? C.verde : C.rosa} bold>▣ <//><${Text} color=${C.gesso} bold>${(r.testo.length > spazio ? r.testo.slice(0, spazio - 1) + '…' : r.testo).padEnd(spazio)}<//><${Text} color=${r.fine ? C.verde : C.ciano}>  ${nota}<//><//>`);
+    metti('r', html`<${Text} wrap="truncate-end"><${Text} color=${r.fine ? C.verde : C.rosa} bold>◈ <//><${Text} color=${C.gesso} bold>${(r.testo.length > spazio ? r.testo.slice(0, spazio - 1) + '…' : r.testo).padEnd(spazio)}<//><${Text} color=${r.fine ? C.verde : C.ciano}>  ${nota}<//><//>`);
   } else {
-    metti('r', html`<${Text} color=${C.grigio} wrap="truncate-end">▣ nessuna richiesta ancora: scrivi cosa vuoi fare nella riga › qui sotto<//>`);
+    metti('r', html`<${Text} color=${C.grigio} wrap="truncate-end">◈ nessuna richiesta ancora: scrivi cosa vuoi fare nella riga › qui sotto<//>`);
   }
 
   // --- i compiti, con le tre fasi ---
@@ -268,7 +268,7 @@ export function PannelloAgenti({ h, w, tel, ruoli, disponibili, tick, coda = [],
     if (!compiti.length) metti('c0', html`<${Text} color=${C.grigio}>  ${SPIN[tick % SPIN.length]} il direttore sta dividendo il lavoro…<//>`);
     const posto = Math.max(1, h - righe.length - hSquadra - 1 - hCoda);
     compiti.slice(0, posto).forEach((c, i) => metti('c' + i, html`<${RigaCompito} c=${c} i=${i} chiamate=${chiamate} tick=${tick} larghezza=${w} disponibili=${disponibili} />`));
-    if (compiti.length && h - righe.length > hSquadra + hCoda + 6) metti('cl', html`<${Text} color=${C.scuro} wrap="truncate-end">   P piano · L lavoro (esecutore o operatore) · V verifica del revisore · ● fatto  ✖ errore  ⟳ riserva  2 = corretto due volte  ←1,2 aspetta i compiti 1 e 2<//>`);
+    if (compiti.length && h - righe.length > hSquadra + hCoda + 6) metti('cl', html`<${Text} color=${C.scuro} wrap="truncate-end">   P piano · L lavoro (esecutore o operatore) · V verifica del revisore · ● fatto  ✗ errore  » riserva  2 = corretto due volte  ←1,2 aspetta i compiti 1 e 2<//>`);
   }
 
   // --- la squadra ---

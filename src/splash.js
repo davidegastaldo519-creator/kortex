@@ -185,6 +185,7 @@ function creaSfondo(tema, W, H, casuale) {
     for (let x = 0; x < W; x++) if (casuale() < 0.45) gocce.push({ x, y: -casuale() * H * 2, v: 6 + casuale() * 14, l: 5 + Math.floor(casuale() * 14), s: Math.floor(casuale() * 1000) });
     return { tipo: 'pioggia', gocce };
   }
+  if (tema === 'synthwave' || tema === 'vaporwave') return { tipo: 'griglia', stelle: Array.from({ length: Math.floor((W * H) / 160) }, (_, i) => ({ x: Math.floor(caso(i, 11) * W), y: Math.floor(caso(i, 29) * H * 0.55), f: caso(i, 53) })) };
   const stelle = Array.from({ length: Math.floor((W * H) / 110) }, (_, i) => ({ x: Math.floor(caso(i, 11) * W), y: Math.floor(caso(i, 29) * H), f: caso(i, 53) }));
   return { tipo: 'stelle', stelle };
 }
@@ -203,6 +204,38 @@ function disegnaSfondo(sf, tela, t, dt, W, H, evita, intensita) {
       const b = 0.25 + 0.75 * Math.abs(Math.sin(t * (0.8 + st.f) + st.f * 9));
       tela.metti(st.x, st.y, b > 0.7 ? '·' : '˙', scala([120, 100, 170], b * 0.6 * intensita));
     }
+    return;
+  }
+  if (sf.tipo === 'griglia') {
+    // il tramonto anni '80: stelle in alto, una griglia in prospettiva che scorre verso di te in basso
+    const orizzonte = Math.floor(H * 0.62);
+    for (const st of sf.stelle) {
+      if (evita(st.x, st.y) || st.y >= orizzonte) continue;
+      const b = 0.3 + 0.7 * Math.abs(Math.sin(t * (0.6 + st.f) + st.f * 9));
+      tela.metti(st.x, st.y, b > 0.75 ? '✦' : '·', scala([255, 160, 220], b * 0.55 * intensita));
+    }
+    const cx = W / 2;
+    const corsa = (t * 0.9) % 1;
+    for (let k = 0; k < 9; k++) {
+      // righe orizzontali: si addensano verso l'orizzonte
+      const z = (k + corsa) / 9;
+      const y = Math.round(orizzonte + (H - orizzonte) * z * z);
+      if (y >= H) continue;
+      const col = scala(mescola([120, 20, 140], [255, 42, 160], z), (0.35 + 0.65 * z) * intensita);
+      // dietro le scritte la griglia non sparisce (farebbe un buco): si abbassa soltanto
+      const colTenue = scala(mescola([120, 20, 140], [255, 42, 160], z), (0.35 + 0.65 * z) * intensita * 0.35);
+      for (let x = 0; x < W; x++) tela.metti(x, y, '─', evita(x, y) ? colTenue : col);
+    }
+    for (let k = -12; k <= 12; k++) {
+      // linee verso il punto di fuga
+      for (let y = orizzonte; y < H; y++) {
+        const z = (y - orizzonte) / Math.max(1, H - orizzonte);
+        const x = Math.round(cx + k * 2 + k * z * (W / 14));
+        if (x < 0 || x >= W) continue;
+        tela.metti(x, y, k === 0 ? '│' : k < 0 ? '╱' : '╲', scala([255, 42, 160], (0.25 + 0.6 * z) * intensita * (evita(x, y) ? 0.35 : 1)));
+      }
+    }
+    for (let x = 0; x < W; x++) tela.metti(x, orizzonte, '━', scala([255, 120, 200], intensita * (evita(x, orizzonte) ? 0.35 : 1)));
     return;
   }
   if (sf.tipo === 'fiamme') {

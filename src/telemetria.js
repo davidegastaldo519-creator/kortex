@@ -1,4 +1,5 @@
 import os from 'node:os';
+import { registraChiamata } from './uso.js';
 
 const STORICO = 60; // secondi di grafico
 
@@ -81,6 +82,7 @@ export class Telemetria {
       voce.fine = Date.now();
       voce.ok = !!ok;
       voce.limitato = !!limitato;
+      registraChiamata({ ia: id, ruolo, secondi: (voce.fine - t0) / 1000, ok, limitato });
     };
   }
 }

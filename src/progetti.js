@@ -161,3 +161,44 @@ export function ripristina(cwd, id) {
   istantanea(cwd, `ripristinato a ${id}`);
   return { sicurezza, rimossi: nuovi.length };
 }
+
+// ---------- la revisione file per file: cosa è cambiato da un punto di ripristino a ora ----------
+
+// I file cambiati tra un punto di ripristino e i file di adesso: [{ file, stato: 'A'|'M'|'D' }]
+export function cambiatiDa(cwd, id) {
+  try {
+    preparaIstantanee(cwd);
+    gitIstantanee(cwd, ['add', '-A', '--', '.']);
+    const out = gitIstantanee(cwd, ['diff', '--cached', '--name-status', '--no-renames', id]).trim();
+    return out ? out.split('\n').map((r) => { const [stato, ...f] = r.split('\t'); return { stato: stato[0], file: f.join('\t') }; }) : [];
+  } catch { return []; }
+}
+
+// Il diff di un file (o di tutti) tra il punto di ripristino e adesso, già diviso in righe colorabili.
+export function diffDa(cwd, id, file = null, massimo = 1500) {
+  try {
+    gitIstantanee(cwd, ['add', '-A', '--', '.']);
+    const out = gitIstantanee(cwd, ['diff', '--cached', '--no-color', '--no-renames', id, '--', ...(file ? [file] : ['.'])], { maxBuffer: 20 * 1024 * 1024 });
+    const righe = [];
+    for (const r of out.split('\n')) {
+      if (righe.length >= massimo) { righe.push({ t: '… (diff troncato)', tipo: 'info' }); break; }
+      if (r.startsWith('diff --git')) { righe.push({ t: '▌ ' + r.replace(/^diff --git a\/(.*) b\/.*/, '$1'), tipo: 'file' }); continue; }
+      if (r.startsWith('+++') || r.startsWith('---') || r.startsWith('index ') || r.startsWith('new file') || r.startsWith('deleted file')) continue;
+      if (r.startsWith('Binary')) righe.push({ t: '  (file binario)', tipo: 'info' });
+      else if (r.startsWith('@@')) righe.push({ t: r, tipo: 'blocco' });
+      else if (r.startsWith('+')) righe.push({ t: r, tipo: 'piu' });
+      else if (r.startsWith('-')) righe.push({ t: r, tipo: 'meno' });
+      else if (r) righe.push({ t: r, tipo: 'testo' });
+    }
+    return righe;
+  } catch { return []; }
+}
+
+// Riporta UN file com'era al punto di ripristino (se allora non esisteva, lo toglie).
+export function ripristinaFile(cwd, id, file) {
+  let esisteva = true;
+  try { gitIstantanee(cwd, ['cat-file', '-e', `${id}:${file}`]); } catch { esisteva = false; }
+  if (esisteva) gitIstantanee(cwd, ['checkout', '-q', id, '--', file]);
+  else fs.rmSync(path.join(cwd, file), { force: true });
+  return esisteva ? 'riportato com\'era' : 'tolto (prima non esisteva)';
+}

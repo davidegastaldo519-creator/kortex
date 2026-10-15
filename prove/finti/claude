@@ -35,7 +35,7 @@ elif "Sei l'ESECUTORE" in prompt:
     strumento('Write', {'file_path': nome})
     time.sleep(0.8)
     with open(nome, 'w') as f: f.write('ciao da claude\n')
-    risultato = f'Ho creato {nome} con un saluto.'
+    risultato = f'## Fatto\nHo creato **{nome}** con un saluto.\n\n- contiene una riga di testo\n- codifica `utf-8`\n\n```sh\ncat {nome}  # per vederlo\n```'
     testo(risultato)
 elif "Sei l'OPERATORE" in prompt:
     m = re.search(r'Esegui: (.+?) e riferisci', prompt)

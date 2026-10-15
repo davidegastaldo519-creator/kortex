@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import { diffProgetto } from './state.js';
 import { DIR_DB, bloccoConoscenze, aggiungiSoluzione } from './database.js';
 import { bloccoPreferenze, ricorda } from './memoria.js';
+import { bloccoProfilo } from './profili.js';
 
 // ---------- scelta dell'IA per un ruolo, con riserva automatica ----------
 
@@ -38,6 +39,7 @@ export async function eseguiRuolo(ruolo, prompt, ctx, opz = {}) {
     const cfg = config.ia[id];
     ui.ruolo(ruolo, 'lavoro', id);
     const chiudi = ctx.tel?.inizio(id, ruolo, opz.compito ?? null) || (() => {});
+    const chiaveBolla = `${ruolo}-${id}-${opz.compito ?? 'x'}-${Date.now()}-${Math.random()}`;
     const modello = id === 'ollama'
       ? (cfg.modello === 'auto' ? disponibili.ollama?.modelli?.[0] : cfg.modello)
       : undefined;
@@ -52,20 +54,21 @@ export async function eseguiRuolo(ruolo, prompt, ctx, opz = {}) {
       adddir: fs.existsSync(DIR_DB) ? ['--add-dir', DIR_DB] : [],
       timeoutSecondi: ruolo === 'esecutore' || ruolo === 'operatore' ? config.timeoutSecondi : Math.min(config.timeoutSecondi || 600, 600),
       silenzioSecondi: config.silenzioSecondi || 300,
-      onTesto: (t) => { ctx.tel?.evento(); if (opz.mostra !== false) scrivi(t); },
+      onTesto: (t) => { ctx.tel?.evento(); if (opz.mostra === false) return; if (ui.bolla) ui.bolla(t, { chiave: chiaveBolla, ia: id, ruolo, compito: opz.compito ?? null }); else scrivi(t); },
       onLog: (m) => { ctx.tel?.evento(); if (/^\s*▸/.test(m)) ctx.tel?.strumento(id, m.replace(/^\s*▸\s*\w+\s*→\s*/, '').trim(), opz.compito ?? null); ui.log(m, { ia: id, ruolo }); },
     });
     chiudi(r);
+    ui.bollaFine?.(chiaveBolla);
 
     if (r.ok) {
-      ui.log(`✔ ${cfg.nome} ha finito (${ruolo})`, { ia: id, ruolo, tipo: 'fine' });
+      ui.log(`✓ ${cfg.nome} ha finito (${ruolo})`, { ia: id, ruolo, tipo: 'fine' });
       if (r.sessione && opz.chiaveSessione) stato.salvaSessione(id, chiave, r.sessione);
       if (r.costo) ui.costo(r.costo);
       ui.ruolo(ruolo, 'ok', id);
       return { ...r, ia: id };
     }
     if (r.limitato) disponibili[id].limitato = true;
-    ui.log(`✖ ${cfg.nome} (${ruolo}): ${r.errore}${r.limitato ? ' — limite raggiunto, passo alla riserva' : ''}`, { ia: id, ruolo, tipo: r.limitato ? 'riserva' : 'errore' });
+    ui.log(`✗ ${cfg.nome} (${ruolo}): ${r.errore}${r.limitato ? ' — limite raggiunto, passo alla riserva' : ''}`, { ia: id, ruolo, tipo: r.limitato ? 'riserva' : 'errore' });
   }
   ui.ruolo(ruolo, 'errore', null);
   return { ok: false, errore: 'tutte le IA disponibili hanno fallito' };
@@ -76,7 +79,7 @@ export async function eseguiRuolo(ruolo, prompt, ctx, opz = {}) {
 const bloccoAllegati = (ctx) =>
   (ctx.allegati?.length
     ? `\nFILE ALLEGATI DALL'UTENTE (dentro la cartella del progetto: leggili o guardali se servono al compito):\n${ctx.allegati.map((a) => '- ' + a).join('\n')}\n`
-    : '') + bloccoConoscenze(ctx.conoscenze) + bloccoPreferenze();
+    : '') + bloccoConoscenze(ctx.conoscenze) + bloccoPreferenze() + bloccoProfilo(ctx.config) + (ctx.server ? `Il server SSH del profilo è raggiungibile con: ssh ${ctx.server}\n` : '');
 
 function esecutoriDisponibili(ctx) {
   return candidati('esecutore', ctx)
@@ -272,7 +275,7 @@ export async function eseguiRichiesta({ richiesta, ctx }) {
     }
   }
   if (!compiti?.length) {
-    ui.log('⚠ il direttore non ha dato un piano valido: lavoro sulla richiesta intera', { tipo: 'avviso' });
+    ui.log('△ il direttore non ha dato un piano valido: lavoro sulla richiesta intera', { tipo: 'avviso' });
     compiti = [{ titolo: richiesta.slice(0, 60), descrizione: richiesta, tipo: 'codice', dipende: [] }];
   }
   compiti = compiti.slice(0, config.maxCompiti || 5);
@@ -285,7 +288,7 @@ export async function eseguiRichiesta({ richiesta, ctx }) {
     statoCompiti[i].stato = s;
     ui.compiti?.([...statoCompiti]);
     ctx.tel?.compiti(statoCompiti);
-    if (s !== 'lavoro') ui.notifica?.(`${s === 'ok' ? '✔' : s === 'errore' ? '✖' : '⚠'} ${i + 1}. ${statoCompiti[i].titolo}`, s);
+    if (s !== 'lavoro') ui.notifica?.(`${s === 'ok' ? '✓' : s === 'errore' ? '✗' : '△'} ${i + 1}. ${statoCompiti[i].titolo}`, s);
   };
   ui.compiti?.([...statoCompiti]);
   ui.pensiero?.('compiti', compiti.map((c, i) => `${i + 1}. ${c.titolo}${c.esecutore ? '  → ' + c.esecutore : ''}${c.tipo === 'comando' ? '  (operatore)' : ''}${c.dipende.length ? '  dopo ' + c.dipende.map((j) => j + 1).join(', ') : ''}\n   ${c.descrizione}`).join('\n'));
@@ -358,7 +361,7 @@ export async function eseguiRichiesta({ richiesta, ctx }) {
       const i = pronti.shift();
       const p = lavora(i).catch((e) => { esiti[i] = { c: compiti[i], esito: 'FALLITO', note: e.message }; segna(i, 'errore'); }).finally(() => inCorso.delete(p));
       inCorso.add(p);
-      if (insieme && inCorso.size > 1) ui.log(`⇉ ${inCorso.size} compiti lavorano insieme`, { tipo: 'info' });
+      if (insieme && inCorso.size > 1) ui.log(`‖ ${inCorso.size} compiti lavorano insieme`, { tipo: 'info' });
     }
     if (!inCorso.size) {
       // nessun compito pronto: quelli in attesa hanno una dipendenza fallita
@@ -381,7 +384,7 @@ export async function eseguiRichiesta({ richiesta, ctx }) {
   const secondi = Math.round((Date.now() - inizio) / 1000);
   const durata = secondi >= 60 ? `${Math.floor(secondi / 60)}m ${secondi % 60}s` : `${secondi}s`;
   ui.titolo('RIEPILOGO');
-  const icona = { OK: '✔', CORREGGI: '⚠', FALLITO: '✖', 'NON VERIFICATO': '?', SALTATO: '·' };
+  const icona = { OK: '✓', CORREGGI: '△', FALLITO: '✗', 'NON VERIFICATO': '?', SALTATO: '·' };
   const lista = esiti.map((e, i) => e || { c: compiti[i], esito: 'FALLITO', note: 'non eseguito' });
   for (const [i, e] of lista.entries()) {
     const chi = e.esecutore ? ` (${e.esecutore}${e.revisore ? ' → ' + e.revisore : ''})` : '';
@@ -422,6 +425,7 @@ export async function chatDiretta({ id, messaggio, ctx, storia }) {
     : undefined;
 
   const chiudi = ctx.tel?.inizio(id, 'chat') || (() => {});
+  const chiaveBolla = `chat-${id}-${Date.now()}`;
   const r = await eseguiIA({
     cfg,
     prompt,
@@ -431,16 +435,17 @@ export async function chatDiretta({ id, messaggio, ctx, storia }) {
     modello,
     adddir: fs.existsSync(DIR_DB) ? ['--add-dir', DIR_DB] : [],
     timeoutSecondi: config.timeoutSecondi,
-    onTesto: (t) => { ctx.tel?.evento(); ui.out(t); },
+    onTesto: (t) => { ctx.tel?.evento(); if (ui.bolla) ui.bolla(t, { chiave: chiaveBolla, ia: id, ruolo: 'chat' }); else ui.out(t); },
     onLog: (m) => { ctx.tel?.evento(); ui.log(m, { ia: id, ruolo: 'chat' }); },
   });
   chiudi(r);
+  ui.bollaFine?.(chiaveBolla);
   if (r.ok) {
     if (r.sessione) stato.salvaSessione(id, chiaveChat, r.sessione);
     if (r.costo) ui.costo(r.costo);
   } else {
     if (r.limitato) disponibili[id].limitato = true;
-    ui.log(`✖ ${cfg.nome}: ${r.errore}${r.limitato ? ' — limite raggiunto: scegli un\'altra IA con /chat' : ''}`, { ia: id, ruolo: 'chat', tipo: 'errore' });
+    ui.log(`✗ ${cfg.nome}: ${r.errore}${r.limitato ? ' — limite raggiunto: scegli un\'altra IA con /chat' : ''}`, { ia: id, ruolo: 'chat', tipo: 'errore' });
   }
   return r;
 }

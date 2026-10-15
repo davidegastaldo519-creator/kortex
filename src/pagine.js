@@ -1,7 +1,9 @@
 import { Box, Text } from 'ink';
 import path from 'node:path';
-import { html, C, COLORE_IA, SPIN, Pannello, Barra, Cervello, statoCervello, avvolgi, accorcia, Neuroni } from './grafica.js';
+import { html, C, COLORE_IA, SPIN, Pannello, Barra, Cervello, statoCervello, avvolgi, accorcia, Neuroni, avvolgiParole } from './grafica.js';
 import { Cliccabile } from './mouse.js';
+import { I } from './icone.js';
+import { impagina } from './markdown.js';
 import { PannelloAgenti } from './agenti.js';
 import { EmblemaDatabase, EmblemaProgetti } from './emblemi.js';
 import { campiona, hex, rgbHex } from './colori.js';
@@ -16,9 +18,9 @@ function coloreRiga(r) {
   if (r.startsWith('▌')) return C.ciano;
   if (r.startsWith('› ')) return C.rosa;
   if (/^│\d/.test(r)) return undefined;
-  if (r.includes('✖')) return C.rosso;
-  if (r.trimStart().startsWith('✔')) return C.verde;
-  if (r.trimStart().startsWith('⚠')) return C.giallo;
+  if (r.includes('✗')) return C.rosso;
+  if (r.trimStart().startsWith('✓')) return C.verde;
+  if (r.trimStart().startsWith('△')) return C.giallo;
   if (r.startsWith('?')) return C.giallo;
   return undefined;
 }
@@ -54,9 +56,32 @@ export function PaginaSelettore({ h, w, elenco, query, sel, azioni }) {
       const i = primo + k;
       const scelto = i === sel;
       return html`<${Riga} key=${f} azione=${() => azioni?.selettore(i)}>
-        <${Text} color=${scelto ? C.rosa : C.grigio}>${scelto ? '▶ ' : '  '}<//>
+        <${Text} color=${scelto ? C.rosa : C.grigio}>${scelto ? '▸ ' : '  '}<//>
         <${Text} color=${scelto ? '#FFFFFF' : C.gesso} bold=${scelto}>${path.basename(f)}<//>
         <${Text} color=${C.grigio}>   ${accorcia(path.dirname(f), Math.max(10, w - 50))}<//>
+      <//>`;
+    })}
+  <//><//>`;
+}
+
+// ---------- la tavolozza dei comandi (Ctrl+P) ----------
+
+const COL_GRUPPO = { pagina: C.ciano, scheda: C.ciano, profilo: C.rosa, tema: C.viola, mappatura: C.giallo, grafica: C.grigio, chat: C.verde, comando: C.gesso, progetto: '#FFB84D', database: '#4D9FFF' };
+
+export function PaginaTavolozza({ h, w, elenco, query, sel, azioni }) {
+  const spazio = Math.max(1, h - 4);
+  const primo = Math.max(0, Math.min(elenco.length - spazio, sel - Math.floor(spazio / 2)));
+  return html`<${Cliccabile} rotella=${(v) => azioni?.rotella('selettore', v)} flexDirection="column"><${Pannello} titolo=${`${I.cerca} TAVOLOZZA DEI COMANDI`} nota=${`scrivi per cercare · ↑↓ scegli · INVIO esegue · ESC o Ctrl+P chiude`} etichetta=${`${elenco.length} risultati`} colore=${C.rosa} coloreTitolo=${C.rosa} height=${h}>
+    <${Text} color=${C.grigio}>cerco: <${Text} color=${C.gesso} bold>${query || '(tutto)'}<//><//>
+    ${elenco.length === 0 ? html`<${Text} color=${C.grigio}>niente corrisponde: prova con meno lettere<//>` : null}
+    ${elenco.slice(primo, primo + spazio).map((v, k) => {
+      const i = primo + k;
+      const scelto = i === sel;
+      return html`<${Riga} key=${i + v.etichetta} azione=${() => azioni?.selettore(i)}>
+        <${Text} color=${scelto ? C.rosa : C.scuro}>${scelto ? '▸ ' : '  '}<//>
+        <${Text} color=${COL_GRUPPO[v.gruppo] || C.grigio}>${v.gruppo.padEnd(10)}<//>
+        <${Text} color=${scelto ? '#FFFFFF' : C.gesso} bold=${scelto}>${v.etichetta}<//>
+        <${Text} color=${C.grigio}>   ${v.descr}<//>
       <//>`;
     })}
   <//><//>`;
@@ -67,7 +92,7 @@ export function PaginaSelettore({ h, w, elenco, query, sel, azioni }) {
 export function PannelloDomanda({ domanda, azioni }) {
   return html`<${Box} flexDirection="column" paddingX=${1}>
     <${Text} color=${C.giallo} bold>? IL DIRETTORE CHIEDE<//>
-    ${avvolgi(domanda.testo.split('\n'), 70).map((r, i) => html`<${Text} key=${i} color=${C.gesso}>${r}<//>`)}
+    ${avvolgiParole(domanda.testo.split('\n'), 70).map((r, i) => html`<${Text} key=${i} color=${C.gesso}>${r}<//>`)}
     <${Text}> <//>
     ${domanda.opzioni.map((o, i) => html`<${Cliccabile} key=${i} azione=${() => azioni?.domanda(i)} height=${1}><${Text} wrap="truncate-end"><${Text} color=${C.ciano} bold> [${i + 1}] <//><${Text} color=${C.gesso}>${o}<//><//><//>`)}
     <${Text}> <//>
@@ -80,10 +105,10 @@ export function PannelloDomanda({ domanda, azioni }) {
 export const SCHEDE = [['agenti', 'AGENTI'], ['output', 'OUTPUT'], ['registro', 'REGISTRO'], ['diff', 'DIFF'], ['file', 'FILE']];
 export const FILTRI = [['tutti', 'TUTTI'], ['claude', 'Claude'], ['codex', 'Codex'], ['gemini', 'Gemini'], ['ollama', 'Ollama'], ['errori', 'ERRORI']];
 const ICONA_EVENTO = {
-  avvio: ['▶', C.ciano], strumento: ['▸', C.viola], fine: ['✔', C.verde], errore: ['✖', C.rosso],
-  riserva: ['⟳', C.giallo], avviso: ['⚠', C.giallo], info: ['·', C.grigio],
+  avvio: ['▸', C.ciano], strumento: ['▸', C.viola], fine: ['✓', C.verde], errore: ['✗', C.rosso],
+  riserva: ['»', C.giallo], avviso: ['△', C.giallo], info: ['·', C.grigio],
 };
-const pulisci = (t) => t.replace(/^\s*[▶▸✖✔⚠⟳]\s*/, '').replace(/^(Claude|Codex|Gemini|Ollama|Antigravity)\s*(:|→)\s*/, '');
+const pulisci = (t) => t.replace(/^\s*[▸▸✗✓△»]\s*/, '').replace(/^(Claude|Codex|Gemini|Ollama|Antigravity)\s*(:|→)\s*/, '');
 
 function Terminale({ h, w, destinazioni, dest, sessione, scorri, fuoco, inCorso, massimi, azioni }) {
   const righe = [];
@@ -100,7 +125,7 @@ function Terminale({ h, w, destinazioni, dest, sessione, scorri, fuoco, inCorso,
       <${Text} color=${C.grigio}>dove  <//>
       <${Box}>${destinazioni.map((d) => html`<${Cliccabile} key=${d.id} azione=${() => azioni?.dest(d.id)}><${Text} color=${d.id === dest.id ? '#000000' : colDest(d)} backgroundColor=${d.id === dest.id ? colDest(d) : undefined} bold=${d.id === dest.id}> ${d.breve || d.nome} <//><//>`)}<//>
     <//>
-    <${Text} color=${C.grigio} wrap="truncate-end">${sessione.collegata === false ? '✖ non collegata  ' : ''}${dove}   <${Text} color=${C.scuro}>Ctrl+D cambia macchina · /dest aggiungi nome utente@host<//><//>
+    <${Text} color=${C.grigio} wrap="truncate-end">${sessione.collegata === false ? '✗ non collegata  ' : ''}${dove}   <${Text} color=${C.scuro}>Ctrl+D cambia macchina · /dest aggiungi nome utente@host<//><//>
     ${vis.length === 0 ? html`<${Neuroni} w=${w - 4} h=${spazio} tick=${azioni?.tick || 0} testo="scrivi un comando nella riga $ e premi INVIO · ↑↓ richiamano i precedenti" />` : null}
     ${vis.map((r, i) => html`<${Text} key=${i} color=${colore[r.tipo]} bold=${r.tipo === 'cmd'} wrap="truncate-end">${r.t || ' '}<//>`)}
   <//><//>`;
@@ -136,26 +161,66 @@ function SchedaRegistro({ h, w, log, filtro, scorri, massimi, azioni, tick }) {
 }
 
 // Il diff del progetto, colorato: verde aggiunte, rosso righe tolte, ciano le intestazioni.
-function SchedaDiff({ h, w, diff, scorri, massimi, tick }) {
-  const righe = diff?.righe || [];
-  const spazio = Math.max(1, h - 1);
+const COL_DIFF = { file: C.ciano, blocco: C.viola, piu: C.verde, meno: C.rosso, nuovo: C.giallo, testo: C.gesso, info: C.grigio };
+const RigheDiff = ({ righe, w }) => righe.map((r, i) => html`<${Text} key=${i} color=${COL_DIFF[r.tipo] || C.gesso} bold=${r.tipo === 'file'} wrap="truncate-end">${r.t.slice(0, w) || ' '}<//>`);
+
+// La scheda DIFF. Dopo una richiesta: a sinistra i file cambiati, a destra le modifiche del file scelto,
+// e i pulsanti per accettare o rifiutare (rifiutare = riportare il file com'era prima della richiesta).
+function SchedaDiff({ h, w, diff, scorri, massimi, tick, azioni }) {
+  if (!diff?.revisione) {
+    const righe = diff?.righe || [];
+    const spazio = Math.max(1, h - 1);
+    massimi.diff = Math.max(0, righe.length - spazio);
+    const inizio = Math.min(scorri, massimi.diff);
+    return html`<${Box} flexDirection="column" height=${h} overflow="hidden">
+      <${Text} wrap="truncate-end"><${Text} color=${C.grigio}>${diff?.riepilogo || 'modifiche ai file del progetto'}<//><${Text} color=${C.scuro}>${righe.length > spazio ? `  ↑↓ scorri (${inizio + 1}-${Math.min(righe.length, inizio + spazio)} di ${righe.length})` : ''}<//><//>
+      ${righe.length === 0 ? html`<${Neuroni} w=${w} h=${spazio} tick=${tick} testo=${diff?.vuoto || 'nessuna modifica: dopo una richiesta qui rivedi i file uno per uno'} />` : null}
+      ${RigheDiff({ righe: righe.slice(inizio, inizio + spazio), w })}
+    <//>`;
+  }
+  const { file, scelto, righe, decisioni } = diff;
+  const wSx = Math.min(38, Math.max(24, Math.floor(w * 0.32)));
+  const wDx = w - wSx - 1;
+  const spazio = Math.max(1, h - 3);
   massimi.diff = Math.max(0, righe.length - spazio);
   const inizio = Math.min(scorri, massimi.diff);
-  const col = { file: C.ciano, blocco: C.viola, piu: C.verde, meno: C.rosso, nuovo: C.giallo, testo: C.gesso, info: C.grigio };
+  const fatti = file.filter((f) => decisioni[f.file]).length;
+  const stato = { A: ['+', C.verde, 'nuovo'], M: ['~', C.giallo, 'modificato'], D: ['-', C.rosso, 'tolto'] };
+  const segnoDecisione = (f) => decisioni[f.file] === 'ok' ? [I.accetta, C.verde] : decisioni[f.file] === 'via' ? [I.rifiuta, C.rosso] : ['○', C.scuro];
+  const Pulsante = ({ testo, col, azione }) => html`<${Box} marginRight=${1}><${Cliccabile} azione=${azione}><${Text} color="#000000" backgroundColor=${col} bold> ${testo} <//><//><//>`;
+  if (!file.length) return html`<${Box} flexDirection="column" height=${h} overflow="hidden">
+    <${Text} color=${C.verde}>${I.ok} nessun file cambiato dall'ultima richiesta (o li hai già riportati tutti com'erano)<//>
+    <${Neuroni} w=${w} h=${h - 1} tick=${tick} testo="dopo la prossima richiesta qui rivedi i file uno per uno" />
+  <//>`;
   return html`<${Box} flexDirection="column" height=${h} overflow="hidden">
-    <${Text} wrap="truncate-end"><${Text} color=${C.grigio}>${diff?.riepilogo || 'modifiche ai file del progetto'}<//><${Text} color=${C.scuro}>${righe.length > spazio ? `  ↑↓ scorri (${inizio + 1}-${Math.min(righe.length, inizio + spazio)} di ${righe.length})` : ''}<//><//>
-    ${righe.length === 0 ? html`<${Neuroni} w=${w} h=${spazio} tick=${tick} testo=${diff?.vuoto || 'nessuna modifica: il diff compare mentre le IA lavorano'} />` : null}
-    ${righe.slice(inizio, inizio + spazio).map((r, i) => html`<${Text} key=${i} color=${col[r.tipo] || C.gesso} bold=${r.tipo === 'file'} wrap="truncate-end">${r.t.slice(0, w) || ' '}<//>`)}
+    <${Box} height=${1}>
+      <${Pulsante} testo=${`${I.accetta} accetta  INVIO`} col=${C.verde} azione=${() => azioni?.decidi('accetta')} />
+      <${Pulsante} testo=${`${I.rifiuta} rifiuta  Ctrl+R`} col=${C.rosso} azione=${() => azioni?.decidi('rifiuta')} />
+      <${Pulsante} testo="accetta tutto" col=${C.viola} azione=${() => azioni?.decidi('accetta', true)} />
+      <${Pulsante} testo="rifiuta tutto" col=${C.scuro} azione=${() => azioni?.decidi('rifiuta', true)} />
+      <${Text} color=${C.grigio} wrap="truncate-end">  rivisti ${fatti}/${file.length}<//>
+    <//>
+    <${Text} color=${C.scuro} wrap="truncate-end">${'─'.repeat(wSx)}┬${'─'.repeat(Math.max(0, wDx))}<//>
+    <${Box} height=${spazio}>
+      <${Box} flexDirection="column" width=${wSx} overflow="hidden">
+        ${file.slice(0, spazio).map((f, i) => { const sel = scelto && f.file === scelto.file; const [s, cs] = stato[f.stato] || ['?', C.grigio]; const [d, cd] = segnoDecisione(f); return html`<${Cliccabile} key=${f.file} azione=${() => azioni?.selezionaFile(i)} height=${1}><${Text} wrap="truncate-end"><${Text} color=${sel ? C.rosa : C.scuro}>${sel ? '▸' : ' '}<//><${Text} color=${cd}>${d} <//><${Text} color=${cs} bold>${s} <//><${Text} color=${sel ? '#FFFFFF' : decisioni[f.file] ? C.grigio : C.gesso} bold=${sel}>${f.file}<//><//><//>`; })}
+      <//>
+      <${Text} color=${C.scuro}>${'│\n'.repeat(spazio).trimEnd()}<//>
+      <${Box} flexDirection="column" width=${wDx} overflow="hidden">
+        ${scelto ? html`<${Text} wrap="truncate-end"><${Text} color=${(stato[scelto.stato] || [])[1] || C.grigio} bold>${scelto.file}<//><${Text} color=${C.grigio}>  ${(stato[scelto.stato] || [])[2] || ''}${righe.length > spazio - 1 ? `  · PAG SU/GIÙ scorre (${inizio + 1}-${Math.min(righe.length, inizio + spazio - 1)} di ${righe.length})` : ''}<//><//>` : null}
+        ${RigheDiff({ righe: righe.filter((r) => r.tipo !== 'file').slice(inizio, inizio + spazio - 1), w: wDx })}
+      <//>
+    <//>
   <//>`;
 }
 
 export function PaginaLavoro(p) {
-  const { h, w, righe, scorri, log, ruoli, disponibili, compiti, file, tick, massimi, tel, scheda, fuoco, filtro, azioni, domanda } = p;
+  const { h, w, messaggi, scorri, log, ruoli, disponibili, compiti, file, tick, massimi, tel, scheda, fuoco, filtro, azioni, domanda } = p;
   const wTerm = Math.max(44, Math.floor(w * 0.44));
   const wDx = w - wTerm;
   const dentro = wDx - 4;
   const spin = SPIN[tick % SPIN.length];
-  const iconaCompito = { attesa: ['○', C.grigio], lavoro: [spin, C.rosa], ok: ['✔', C.verde], avviso: ['⚠', C.giallo], errore: ['✖', C.rosso] };
+  const iconaCompito = { attesa: ['○', C.grigio], lavoro: [spin, C.rosa], ok: ['✓', C.verde], avviso: ['△', C.giallo], errore: ['✗', C.rosso] };
   const testoIA = (d) => (!d.ok ? 'non collegata' : d.limitato ? 'al limite' : tel.ia[d.id]?.attivo ? `pensa · ${tel.ia[d.id].attivo}` : 'pronta');
   const hDentro = h - 4; // bordi + riga delle schede + riga delle IA
   const stretta = dentro < 96;
@@ -163,19 +228,20 @@ export function PaginaLavoro(p) {
   let contenuto;
   if (domanda) contenuto = html`<${PannelloDomanda} domanda=${domanda} azioni=${azioni} />`;
   else if (scheda === 'output') {
-    const tutte = avvolgi(righe, Math.max(10, dentro));
+    const nomi = Object.fromEntries(Object.values(disponibili).map((d) => [d.id, d.nome]));
+    const tutte = impagina(messaggi, Math.max(20, dentro - 1), { nomi, spin, bolle: p.config?.bolle !== false });
+    const vuoto = !tutte.some((r) => r.length);
     massimi.lavoro = Math.max(0, tutte.length - hDentro);
-    const vis = finestraBasso(tutte, hDentro, scorri);
-    const vuoto = tutte.length <= 1 && !tutte[0];
+    const vis = finestraBasso(tutte, hDentro - (scorri > 0 ? 1 : 0), scorri);
     contenuto = html`<${Box} flexDirection="column" height=${hDentro} overflow="hidden">
-      ${scorri > 0 ? html`<${Text} color=${C.giallo}>↑ ${scorri} righe più indietro — FRECCIA GIÙ per tornare in fondo<//>` : null}
-      ${vuoto ? html`<${Neuroni} w=${dentro} h=${hDentro} tick=${tick} testo="qui compare quello che scrivono le IA" />` : null}
-      ${vis.map((r, i) => html`<${Text} key=${i} color=${coloreRiga(r)} wrap="truncate-end">${r || ' '}<//>`)}
+      ${scorri > 0 ? html`<${Text} color=${C.giallo}>↑ ${scorri} righe più indietro — FRECCIA GIÙ o rotella per tornare in fondo<//>` : null}
+      ${vuoto ? html`<${Neuroni} w=${dentro} h=${hDentro} tick=${tick} testo="qui compare quello che scrivono le IA, ognuna nella sua bolla" />` : null}
+      ${vuoto ? null : vis.map((r, i) => html`<${Text} key=${i} wrap="truncate-end">${r.length ? r.map((x, k) => html`<${Text} key=${k} color=${x.c} backgroundColor=${x.bg} bold=${!!x.b} italic=${!!x.i}>${x.t}<//>`) : ' '}<//>`)}
     <//>`;
   } else if (scheda === 'registro') {
     contenuto = html`<${SchedaRegistro} h=${hDentro} w=${dentro} log=${log} filtro=${filtro} scorri=${scorri} massimi=${massimi} azioni=${azioni} tick=${tick} />`;
   } else if (scheda === 'diff') {
-    contenuto = html`<${SchedaDiff} h=${hDentro} w=${dentro} diff=${p.diff} scorri=${scorri} massimi=${massimi} tick=${tick} />`;
+    contenuto = html`<${SchedaDiff} h=${hDentro} w=${dentro} diff=${p.diff} scorri=${scorri} massimi=${massimi} tick=${tick} azioni=${azioni} />`;
   } else if (scheda === 'file') {
     contenuto = html`<${Box} flexDirection="column" height=${hDentro} overflow="hidden">
       <${Text} color=${C.ciano} bold>COMPITI<//>
@@ -261,8 +327,8 @@ export function PaginaControllo({ h, w, config, selezionato, tel, disponibili, t
     <${Cliccabile} rotella=${(v) => azioni?.rotella('controllo', v)} flexDirection="column" width=${wSx}>
       ${!compatto && html`<${Pannello} titolo="MAPPATURE" nota="tasti 1-5 o clic" height=${hMap} flexShrink=${0}>
         ${MAPPATURE.map((m, i) => html`<${Riga} key=${m.nome} azione=${() => azioni?.mappatura(i)}>
-          <${Text} color=${i === mappaAttiva ? C.ciano : C.grigio} bold=${i === mappaAttiva}>${i === mappaAttiva ? '▶' : ' '} ${i + 1} ${m.nome.padEnd(9)}<//>
-          <${Text} color=${rgbHex(campiona([hex(C.viola), hex(C.rosa), hex(C.ciano)], i / 6))}>${'▮'.repeat(i + 1)}<//><${Text} color=${C.scuro}>${'▯'.repeat(4 - i)}<//>
+          <${Text} color=${i === mappaAttiva ? C.ciano : C.grigio} bold=${i === mappaAttiva}>${i === mappaAttiva ? '▸' : ' '} ${i + 1} ${m.nome.padEnd(9)}<//>
+          <${Text} color=${rgbHex(campiona([hex(C.viola), hex(C.rosa), hex(C.ciano)], i / 6))}>${'■'.repeat(i + 1)}<//><${Text} color=${C.scuro}>${'□'.repeat(4 - i)}<//>
           <${Text} color=${C.grigio}>  ${m.uso}<//>
         <//>`)}
       <//>`}
@@ -272,7 +338,7 @@ export function PaginaControllo({ h, w, config, selezionato, tel, disponibili, t
           const sel = i === selezionato;
           return html`<${Box} key=${q.chiave} height=${1}>
             <${Cliccabile} azione=${() => azioni?.parametro(i, 'seleziona')}><${Text} wrap="truncate-end">
-              <${Text} color=${sel ? C.rosa : C.grigio}>${sel ? '▶ ' : '  '}<//>
+              <${Text} color=${sel ? C.rosa : C.grigio}>${sel ? '▸ ' : '  '}<//>
               <${Text} color=${sel ? '#FFFFFF' : C.gesso} bold=${sel}>${q.nome.padEnd(23)}<//>
             <//><//>
             <${Cliccabile} azione=${() => azioni?.parametro(i, 'meno')}><${Text} color=${sel ? C.ciano : C.scuro}>◂<//><//>
@@ -282,10 +348,10 @@ export function PaginaControllo({ h, w, config, selezionato, tel, disponibili, t
           <//>`;
         })}
       <//>
-      <${Pannello} titolo=${'ⓘ ' + p.nome.toUpperCase()} colore=${C.ciano} height=${hInfo} flexShrink=${0}>
+      <${Pannello} titolo=${'i ' + p.nome.toUpperCase()} colore=${C.ciano} height=${hInfo} flexShrink=${0}>
         <${Text} color=${C.gesso}>${p.spiega}<//>
         <${Text} color=${C.grigio}>${p.tipo === 'numero' ? `Da ${p.min} a ${p.max}${p.unita || ''}, a passi di ${p.passo}.` : p.tipo === 'sino' ? 'SÌ oppure NO.' : p.tipo === 'scelta' ? `${p.valori.join(' · ').toUpperCase()}` : 'Ordine: ' + (config.ruoli[p.ruolo] || []).map((id) => config.ia[id]?.nome || id).join(' → ')}<//>
-        ${messaggio ? html`<${Text} color=${C.verde}>✔ ${messaggio}<//>` : null}
+        ${messaggio ? html`<${Text} color=${C.verde}>✓ ${messaggio}<//>` : null}
       <//>
     <//>
     <${Box} flexDirection="column" width=${wDx}>
@@ -335,7 +401,7 @@ export function PaginaStudio({ h, w, lavagna, appunti, scorri, tick, massimi, me
   const larg = Math.max(20, wSx - 6);
   const righe = [];
   for (const [titolo, testo] of sezioni) {
-    righe.push({ t: `✎ ${titolo}`, titolo: true });
+    righe.push({ t: `◇ ${titolo}`, titolo: true });
     for (const r of avvolgi(String(testo || '—').split('\n'), larg)) righe.push({ t: '  ' + r });
     righe.push({ t: '' });
   }
@@ -354,7 +420,7 @@ export function PaginaStudio({ h, w, lavagna, appunti, scorri, tick, massimi, me
   const righeM = [];
   for (const [titolo, testo, col] of blocchi) {
     righeM.push({ t: `◆ ${titolo}`, col, titolo: true });
-    for (const r of avvolgi(testo, lm)) righeM.push({ t: '  ' + r, col: C.gesso });
+    for (const r of avvolgiParole(testo, lm)) righeM.push({ t: '  ' + r, col: C.gesso });
     righeM.push({ t: '' });
   }
   const aggiornata = memoria.ultimo && Date.now() - memoria.ultimo < 4500;
@@ -364,7 +430,7 @@ export function PaginaStudio({ h, w, lavagna, appunti, scorri, tick, massimi, me
       ${vuota ? html`<${Neuroni} w=${wSx - 4} h=${Math.max(2, Math.floor(spazio / 2))} tick=${tick} colore=${C.lavagna} testo="la lavagna si riempie con la prima richiesta" />` : null}
       ${righe.slice(inizio, inizio + spazio - (vuota ? Math.floor(spazio / 2) : 0)).map((r, i) => html`<${Text} key=${i} wrap="truncate-end" color=${r.titolo ? C.giallo : C.gesso} bold=${!!r.titolo}>${r.t || ' '}<//>`)}
     <//><//>
-    <${Pannello} titolo="MAPPA DELLA MEMORIA" nota=${aggiornata ? '● aggiornata adesso' : '/ricorda · /dimentica N · /memoria'} etichetta=${memoria.sincronizzata ? '⇅ GitHub' : ''} colore=${aggiornata ? C.rosa : C.viola} flexGrow=${1} height=${h}>
+    <${Pannello} titolo="MAPPA DELLA MEMORIA" nota=${aggiornata ? '● aggiornata adesso' : '/ricorda · /dimentica N · /memoria'} etichetta=${memoria.sincronizzata ? '» GitHub' : ''} colore=${aggiornata ? C.rosa : C.viola} flexGrow=${1} height=${h}>
       ${righeM.slice(0, h - 3).map((r, i) => html`<${Text} key=${i} wrap="truncate-end" color=${r.col || C.gesso} bold=${!!r.titolo}>${r.t || ' '}<//>`)}
     <//>
   <//>`;
@@ -377,7 +443,7 @@ export function PaginaGuida({ h, w, scorri, massimi, azioni }) {
   const righe = [];
   for (const r of GUIDA) {
     if (r.startsWith('# ')) { righe.push({ t: '' }); righe.push({ t: '◆ ' + r.slice(2), titolo: true }); }
-    else for (const x of avvolgi([r.startsWith('- ') ? '  • ' + r.slice(2) : r], larg)) righe.push({ t: x });
+    else for (const x of avvolgiParole([r.startsWith('- ') ? '  • ' + r.slice(2) : r], larg)) righe.push({ t: x });
   }
   const spazio = Math.max(1, h - 3);
   massimi.guida = Math.max(0, righe.length - spazio);
@@ -403,7 +469,7 @@ export function PaginaProgetti({ h, w, progetti, selezione, colonna, chat, istan
         const sel = i === selezione.progetto;
         const aperto = q.percorso === progettoAttuale;
         return html`<${Cliccabile} key=${q.percorso} azione=${() => azioni?.progetto(i)} flexDirection="column">
-          <${Text} wrap="truncate-end"><${Text} color=${sel ? C.rosa : C.grigio}>${sel ? '▶ ' : '  '}<//><${Text} color=${aperto ? C.ciano : C.gesso} bold=${sel || aperto}>${q.nome}<//><${Text} color=${C.grigio}>${aperto ? '  ● aperto' : ''}<//><//>
+          <${Text} wrap="truncate-end"><${Text} color=${sel ? C.rosa : C.grigio}>${sel ? '▸ ' : '  '}<//><${Text} color=${aperto ? C.ciano : C.gesso} bold=${sel || aperto}>${q.nome}<//><${Text} color=${C.grigio}>${aperto ? '  ● aperto' : ''}<//><//>
           <${Text} color=${C.grigio} wrap="truncate-end">    ${q.descrizione || accorcia(q.percorso, wSx - 8)}<//>
         <//>`;
       })}
@@ -417,7 +483,7 @@ export function PaginaProgetti({ h, w, progetti, selezione, colonna, chat, istan
           const i = primoC + k;
           const sel = colonna === 'chat' && i === selezione.chat;
           const aperta = c.id === chatAttuale;
-          return html`<${Riga} key=${c.id} azione=${() => azioni?.chat(i)}><${Text} color=${sel ? C.rosa : C.grigio}>${sel ? '▶ ' : '  '}<//><${Text} color=${aperta ? C.ciano : C.gesso} bold=${sel || aperta}>${c.titolo}<//><${Text} color=${C.grigio}>   ${c.messaggi.length} messaggi · ${quando(c.ultimo)}${aperta ? ' · ● aperta' : ''}<//><//>`;
+          return html`<${Riga} key=${c.id} azione=${() => azioni?.chat(i)}><${Text} color=${sel ? C.rosa : C.grigio}>${sel ? '▸ ' : '  '}<//><${Text} color=${aperta ? C.ciano : C.gesso} bold=${sel || aperta}>${c.titolo}<//><${Text} color=${C.grigio}>   ${c.messaggi.length} messaggi · ${quando(c.ultimo)}${aperta ? ' · ● aperta' : ''}<//><//>`;
         })}
       <//><//>
       <${Pannello} titolo="PUNTI DI RIPRISTINO" nota=${istantanee.length ? '/ripristina ID riporta i file a quel momento · clic per copiare il comando' : ''} flexGrow=${1}>
@@ -458,7 +524,7 @@ export function PaginaDatabase({ h, w, voci, categoria, query, sel, conteggi, gi
       ${voci.slice(primo, primo + spazio).map((x, k) => {
         const i = primo + k;
         const s = i === sel;
-        return html`<${Riga} key=${x.id} azione=${() => azioni?.dbVoce(i)}><${Text} color=${s ? C.rosa : C.grigio}>${s ? '▶ ' : '  '}<//><${Text} color=${COLORE_CAT[x.categoria]}>■ <//><${Text} color=${s ? '#FFFFFF' : C.gesso} bold=${s}>${x.titolo}<//><${Text} color=${C.grigio}>   ${x.tag.slice(0, 4).map((t) => '#' + t).join(' ')}  ${quando(x.aggiunto)}<//><//>`;
+        return html`<${Riga} key=${x.id} azione=${() => azioni?.dbVoce(i)}><${Text} color=${s ? C.rosa : C.grigio}>${s ? '▸ ' : '  '}<//><${Text} color=${COLORE_CAT[x.categoria]}>■ <//><${Text} color=${s ? '#FFFFFF' : C.gesso} bold=${s}>${x.titolo}<//><${Text} color=${C.grigio}>   ${x.tag.slice(0, 4).map((t) => '#' + t).join(' ')}  ${quando(x.aggiunto)}<//><//>`;
       })}
     <//><//>
     <${Pannello} titolo="SCHEDA" nota=${v ? `@${v.titolo.split(' ')[0].toLowerCase()} nella richiesta la usa` : ''} colore=${C.ciano} width=${wDx} height=${h} flexShrink=${0}>
@@ -476,5 +542,121 @@ export function PaginaDatabase({ h, w, voci, categoria, query, sel, conteggi, gi
         <${Text} color=${C.grigio} wrap="truncate-end">/db sposta ${v.id} categoria · /db tag ${v.id} a,b · /db togli ${v.id}<//>
       <//>`}
     <//>
+  <//>`;
+}
+
+// ---------- STATISTICHE: il tuo lavoro con KORTEX in numeri ----------
+
+import { statistiche, carburante } from './uso.js';
+import { righeLogo } from './colori.js';
+
+function Tessera({ titolo, valore, nota, colore, w }) {
+  const grande = righeLogo(String(valore), w - 4, ['Small', 'Mini']);
+  const usaGrande = grande.length > 1 && Math.max(...grande.map((r) => r.length)) <= w - 4;
+  return html`<${Box} flexDirection="column" borderStyle="round" borderColor=${colore} paddingX=${1} width=${w} height=${usaGrande ? grande.length + 4 : 5} flexShrink=${0}>
+    <${Text} color=${colore} bold wrap="truncate-end">${titolo}<//>
+    ${usaGrande ? grande.map((r, i) => html`<${Text} key=${i} color=${colore}>${r}<//>`) : html`<${Text} color=${colore} bold>${String(valore)}<//>`}
+    <${Text} color=${C.grigio} wrap="truncate-end">${nota}<//>
+  <//>`;
+}
+
+export function PaginaStatistiche({ h, w, config, disponibili }) {
+  const s = statistiche();
+  const ore = (sec) => (sec >= 3600 ? `${(sec / 3600).toFixed(1)}h` : `${Math.round(sec / 60)}m`);
+  const riuscitiPct = s.compiti ? Math.round((s.compitiOk / s.compiti) * 100) : 0;
+  // stima prudente: un compito riuscito fa risparmiare circa un quarto d'ora di lavoro a mano
+  const risparmiate = (s.compitiOk * 15) / 60;
+  const wT = Math.max(18, Math.floor((w - 2) / 5));
+  const preferita = Object.entries(s.perIA).sort((a, b) => b[1].chiamate - a[1].chiamate)[0];
+  const giorni = [];
+  for (let k = 13; k >= 0; k--) { const d = new Date(Date.now() - k * 86400000).toISOString().slice(0, 10); giorni.push([d, s.perGiorno[d] || 0]); }
+  const maxG = Math.max(1, ...giorni.map((g) => g[1]));
+  const hTessere = 9;
+  const hSotto = Math.max(6, h - hTessere);
+  const wSx = Math.floor(w * 0.55);
+  const altezzaBarre = Math.max(2, hSotto - 6);
+  const larghezzaColonna = Math.max(2, Math.min(5, Math.floor((w - wSx - 6) / 14)));
+  return html`<${Box} flexDirection="column" height=${h}>
+    <${Box} height=${hTessere} overflow="hidden">
+      <${Tessera} titolo=${`${I.razzo} RICHIESTE`} valore=${s.richieste} nota=${s.primoGiorno ? `dal ${s.primoGiorno}` : 'ancora nessuna'} colore=${C.rosa} w=${wT} />
+      <${Tessera} titolo=${`${I.ok} COMPITI RIUSCITI`} valore=${`${riuscitiPct}%`} nota=${`${s.compitiOk} su ${s.compiti}`} colore=${C.verde} w=${wT} />
+      <${Tessera} titolo=${`${I.file} FILE TOCCATI`} valore=${s.file} nota="creati, modificati o tolti" colore=${C.ciano} w=${wT} />
+      <${Tessera} titolo=${`${I.chip} LAVORO DELLE IA`} valore=${ore(s.secondiIA)} nota="tempo totale di calcolo" colore=${C.viola} w=${wT} />
+      <${Tessera} titolo=${`${I.stella} TEMPO RISPARMIATO`} valore=${`${risparmiate.toFixed(1)}h`} nota="stima: 15 min per compito" colore=${C.giallo} w=${w - 4 * wT} />
+    <//>
+    <${Box} height=${hSotto}>
+      <${Pannello} titolo=${`${I.ia} LE TUE IA`} nota=${preferita ? `la più usata: ${disponibili[preferita[0]]?.nome || preferita[0]}` : ''} width=${wSx} height=${hSotto} flexShrink=${0}>
+        <${Text} color=${C.grigio}>${'IA'.padEnd(9)}${'chiamate'.padStart(9)}${'riuscite'.padStart(10)}${'tempo'.padStart(8)}   carburante (5 ore)<//>
+        ${Object.values(disponibili).map((d) => {
+          const p = s.perIA[d.id] || { chiamate: 0, ok: 0, secondi: 0 };
+          const f = carburante(d.id, config);
+          const pieni = Math.round(f.resto * 10);
+          const col = f.resto < 0.1 ? C.rosso : f.resto < 0.35 ? C.giallo : C.verde;
+          return html`<${Text} key=${d.id} wrap="truncate-end">
+            <${Text} color=${d.ok ? COLORE_IA[d.id] : C.scuro} bold>${d.nome.padEnd(9)}<//>
+            <${Text} color=${C.gesso}>${String(p.chiamate).padStart(9)}${(p.chiamate ? Math.round((p.ok / p.chiamate) * 100) + '%' : '—').padStart(10)}${ore(p.secondi).padStart(8)}   <//>
+            ${d.ok && d.id !== 'ollama' ? html`<${Text}><${Text} color=${col}>${'■'.repeat(pieni)}<//><${Text} color=${C.scuro}>${'□'.repeat(10 - pieni)}<//><${Text} color=${C.grigio}> ${f.usate}/${f.limite}${f.stimato ? ' stimato' : ' imparato'}<//><//>` : html`<${Text} color=${C.scuro}>—<//>`}
+          <//>`;
+        })}
+        <${Text}> <//>
+        <${Text} color=${C.grigio} wrap="wrap">Il carburante conta le chiamate delle ultime 5 ore. Il limite all'inizio è una stima; quando un'IA si ferma davvero per limite raggiunto, KORTEX impara il numero giusto e la scritta diventa "imparato".<//>
+      <//>
+      <${Pannello} titolo=${`${I.statistiche} ULTIMI 14 GIORNI`} nota="richieste al giorno" flexGrow=${1} height=${hSotto}>
+        ${graficoAlto(giorni.flatMap((g) => Array(larghezzaColonna).fill(g[1])), giorni.length * larghezzaColonna, altezzaBarre, maxG).map((r, i) => html`<${Text} key=${i} color=${C.ciano}>${r}<//>`)}
+        <${Text} color=${C.grigio}>${giorni.map((g) => g[0].slice(8, 10).padEnd(larghezzaColonna)).join('')}<//>
+        <${Text} color=${C.grigio}>oggi ${giorni[13][1]} · questa settimana ${giorni.slice(7).reduce((a, g) => a + g[1], 0)} · massimo ${maxG}<//>
+      <//>
+    <//>
+  <//>`;
+}
+
+// ---------- le finestre sopra a tutto: il giro guidato e le novità ----------
+
+import fs from 'node:fs';
+import stringWidth from 'string-width';
+import { RADICE } from './config.js';
+
+export const TUTORIAL = [
+  ['Benvenuto in KORTEX', ['KORTEX fa lavorare insieme più intelligenze artificiali sullo stesso progetto,', 'usando i tuoi abbonamenti: niente chiavi API, niente costi a consumo.', '', 'In 6 passi ti mostro dove sono le cose. Ci vuole un minuto.']],
+  ['Scrivi cosa vuoi fare', ['In basso a destra c\'è la riga ›. Scrivi la richiesta e premi INVIO:', 'il DIRETTORE divide il lavoro, gli ESECUTORI lo fanno (anche in parallelo),', 'l\'OPERATORE lancia i comandi, il REVISORE controlla e fa correggere.', '', 'Mentre lavorano puoi già scrivere la richiesta dopo: si mette in coda.']],
+  ['Le pagine', ['TAB (o un clic in alto) cambia pagina: LAVORO, PROGETTI, DATABASE,', 'CONTROLLO, STUDIO, STATISTICHE, GUIDA. ESC torna sempre a LAVORO.', '', 'A sinistra in LAVORO c\'è un terminale vero: Ctrl+T ci sposta il cursore,', 'Ctrl+D cambia macchina (questo PC, i server SSH, Python, Node).']],
+  ['Guardare il lavoro', ['A destra le schede (Ctrl+N): AGENTI mostra compiti, squadra e attività', 'in diretta; OUTPUT ha una bolla per ogni IA; DIFF ti fa rivedere i file', 'cambiati uno per uno: INVIO accetta, Ctrl+R riporta il file com\'era.']],
+  ['Ctrl+P trova tutto', ['Ctrl+P apre la tavolozza dei comandi: scrivi due lettere e trovi pagine,', 'temi, profili (Programmatore, Minecraft, Studio, Creativo), progetti e', 'voci del database. Non serve ricordare i comandi.']],
+  ['La barra in fondo', ['L\'ultima riga mostra modalità, ramo git, avanzamento e il CARBURANTE', 'di ogni abbonamento nelle ultime 5 ore: se scende, le riserve sono pronte.', '', 'La pagina GUIDA spiega tutto. Buon lavoro!   — ideato e forgiato da GASTY']],
+];
+
+function novita(versione) {
+  try {
+    const testo = fs.readFileSync(`${RADICE}/CHANGELOG.md`, 'utf8');
+    const i = testo.indexOf(`## ${versione}`);
+    if (i < 0) return ['Le novità di questa versione sono nel file CHANGELOG.md.'];
+    const resto = testo.slice(i).split('\n').slice(1);
+    const fine = resto.findIndex((r) => r.startsWith('## '));
+    return resto.slice(0, fine < 0 ? undefined : fine).map((r) => r.replace(/^- /, '• ').replace(/\*\*/g, '')).filter((r, k, a) => r.trim() || (a[k - 1] || '').trim());
+  } catch { return ['Le novità di questa versione sono nel file CHANGELOG.md.']; }
+}
+
+const pieno = (t, n) => { const s = String(t); const l = stringWidth(s); return l >= n ? s : s + ' '.repeat(n - l); };
+
+export function Finestra({ finestra, larghezza, altezza, versione, azioni }) {
+  const w = Math.min(84, larghezza - 6);
+  const dentro = w - 4;
+  let titolo, corpo, piede;
+  if (finestra.tipo === 'tutorial') {
+    const [t, righe] = TUTORIAL[finestra.passo];
+    titolo = `${finestra.passo + 1}/${TUTORIAL.length}  ${t}`;
+    corpo = righe;
+    piede = `${TUTORIAL.map((_, i) => (i === finestra.passo ? '●' : '○')).join(' ')}     ← indietro · INVIO avanti · ESC salta`;
+  } else {
+    titolo = `Novità di KORTEX ${versione}`;
+    corpo = avvolgiParole(novita(versione), dentro).slice(0, Math.max(4, altezza - 14));
+    piede = 'INVIO o ESC per chiudere · /novita le riapre';
+  }
+  const righe = ['', ...avvolgiParole(corpo, dentro), ''];
+  const h = righe.length + 4;
+  return html`<${Box} position="absolute" marginTop=${Math.max(1, Math.floor((altezza - h) / 2))} marginLeft=${Math.max(0, Math.floor((larghezza - w) / 2))} width=${w} height=${h} flexDirection="column" borderStyle="double" borderColor=${C.rosa}>
+    <${Cliccabile} azione=${azioni.avanti}><${Text} color="#000000" backgroundColor=${C.rosa} bold>${pieno(` ${I.stella} ${titolo}`, w - 2)}<//><//>
+    ${righe.map((r, i) => html`<${Text} key=${i} color=${C.gesso}>${pieno(' ' + r, w - 2)}<//>`)}
+    <${Cliccabile} azione=${azioni.chiudi}><${Text} color=${C.grigio}>${pieno(' ' + piede, w - 2)}<//><//>
   <//>`;
 }

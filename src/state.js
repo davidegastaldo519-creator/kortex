@@ -106,7 +106,7 @@ export function righeFile(cwd) {
     }
   }
   const righe = s.split('\n').filter((r) => r && !nostro(r));
-  return righe.length ? righe.slice(0, 60) : ['✔ nessuna modifica'];
+  return righe.length ? righe.slice(0, 60) : ['✓ nessuna modifica'];
 }
 
 // Cosa è cambiato nel progetto: lo legge il revisore.

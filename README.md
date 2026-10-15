@@ -1,4 +1,29 @@
+<div align="center">
+
 # KORTEX — la corteccia delle tue IA
+
+![versione](https://img.shields.io/badge/versione-2.2.0-ff2aa0?style=for-the-badge)
+![node](https://img.shields.io/badge/node-20%2B-00e5ff?style=for-the-badge&logo=node.js&logoColor=white)
+![linux](https://img.shields.io/badge/Linux%20%C2%B7%20Termux-pronto-8a2be2?style=for-the-badge&logo=linux&logoColor=white)
+![ia](https://img.shields.io/badge/Claude%20%C2%B7%20Codex%20%C2%B7%20Gemini%20%C2%B7%20Ollama-squadra-ffb000?style=for-the-badge)
+
+![il risveglio](assets/risveglio.gif)
+
+*ideato e forgiato da **GASTY***
+
+</div>
+
+## Come si presenta
+
+| AGENTI: la squadra al lavoro | OUTPUT: una bolla per ogni IA |
+|---|---|
+| ![agenti](assets/agenti.png) | ![output](assets/output.png) |
+| **DIFF: revisione file per file** | **Ctrl+P: la tavolozza dei comandi** |
+| ![diff](assets/diff.png) | ![tavolozza](assets/tavolozza.png) |
+
+![statistiche](assets/statistiche.png)
+
+**Novità della 2.2**: tavolozza dei comandi **Ctrl+P**, OUTPUT a **bolle** con testo formattato, **revisione** dei file uno per uno (accetta / riporta com'era), **barra di stato** a blocchi colorati, **carburante** degli abbonamenti nelle ultime 5 ore, **profili** di lavoro (Programmatore, Minecraft, Studio, Creativo), temi **Tokyo Night, Dracula, Synthwave, Vaporwave**, icone **Nerd Font** installate da sole, pagina **STATISTICHE**, giro guidato e finestra delle novità. Tutti i cambiamenti sono in [CHANGELOG.md](CHANGELOG.md).
 
 Un solo comando da terminale che fa lavorare insieme **Claude Code, Codex, Gemini CLI e Ollama** su qualunque progetto. Usa le CLI già installate, quindi i tuoi **abbonamenti**: niente chiavi API, niente costi a consumo. Gira uguale su PC Linux e su Termux (telefono e tablet).
 
@@ -57,16 +82,19 @@ All'avvio, circa 12 secondi: il buio, il **battito del cuore** che attraversa lo
 
 Si salta con un tasto qualsiasi, o del tutto con `kortex --no-anim`. Sul telefono e nelle finestre piccole parte una versione corta. Su Lubuntu l'icona nel menu e Ctrl+Alt+K aprono il terminale **grande (massimizzato)** ma come finestra normale (serve `wmctrl`: `sudo apt install -y wmctrl`); su Ubuntu/GNOME con Ptyxis la finestra si apre già massimizzata.
 
-## Lo studio: sei pagine
+## Lo studio: sette pagine
 
 Si passa da una pagina all'altra con **TAB**. ESC riporta sempre a LAVORO.
 
-- **LAVORO** — a sinistra il **terminale** verticale, a destra le **schede** della squadra (Ctrl+N o un clic): AGENTI con l'albero del lavoro, la coda, la mappa dei ruoli e la linea del tempo; OUTPUT; REGISTRO filtrabile (Ctrl+F); **DIFF** con le modifiche colorate in tempo reale; FILE. Due righe di comando in basso, `$` per il terminale e `›` per le IA, Ctrl+T per passare dall'una all'altra. Mentre la squadra lavora puoi già scrivere la richiesta successiva: si mette in **coda** e parte da sola.
+- **LAVORO** — a sinistra il **terminale** verticale, a destra le **schede** della squadra (Ctrl+N o un clic): AGENTI con l'albero del lavoro, la coda, la mappa dei ruoli e la linea del tempo; OUTPUT a **bolle** con testo formattato; REGISTRO filtrabile (Ctrl+F); **DIFF** per rivedere i file uno per uno (INVIO accetta, Ctrl+R riporta com'era); FILE. Due righe di comando in basso, `$` per il terminale e `›` per le IA, Ctrl+T per passare dall'una all'altra. Mentre la squadra lavora puoi già scrivere la richiesta successiva: si mette in **coda** e parte da sola.
 - **PROGETTI** — ogni cartella in cui lavori diventa un progetto con le sue **chat** (come in Claude): le riapri con tutta la storia e la squadra continua da lì. Prima e dopo ogni richiesta KORTEX scatta un **punto di ripristino** in un archivio nascosto separato dal tuo git: `/ripristina ID` riporta tutti i file a quel momento, e anche il ripristino si può annullare. Un nome e INVIO crea un progetto nuovo in `~/kortex-progetti`; `/progetto importa` registra una cartella esistente.
 - **DATABASE** — la memoria unica di tutti i progetti (`~/kortex-database`): manuali, codice, documenti, immagini, note. Aggiungi trascinando un file, con `/db aggiungi percorso-o-url` o `/db nota testo`; un'IA **catalogatore** scrive categoria, titolo, descrizione e tag, e tu correggi con `/db sposta`, `/db tag`, `/db titolo`. Il **guardiano** sorveglia la cartella: i file che le IA scrivono lì dentro vengono catalogati da soli. A ogni richiesta KORTEX **cerca da solo** le voci utili e le passa alle IA con percorso ed estratto; `@titolo`, `@ID` o `@manuali` le obbligano a usarne una. `/db github` crea la copia privata su GitHub e da lì KORTEX **sincronizza da solo** in sottofondo (all'avvio, dopo ogni novità, all'uscita); `/db scarica utente` la riporta su un'altra macchina.
 - **CONTROLLO** — la plancia: parametri con cursore e spiegazione (anche col mouse: ◂ ▸), 5 mappature in scala crescente, grafici in tempo reale di CPU, RAM e pensieri al secondo, i cervelli e i cavi di ogni IA.
 - **STUDIO** — la lavagna col ragionamento dell'ultima richiesta e i tuoi appunti (`/nota`).
+- **STATISTICHE** — richieste, compiti riusciti, file toccati, tempo delle IA, tempo risparmiato, carburante di ogni abbonamento e gli ultimi 14 giorni.
 - **GUIDA** — il manuale completo.
+
+In qualunque pagina **Ctrl+P** apre la tavolozza: due lettere e trovi pagine, temi, profili, progetti e voci del database. L'ultima riga è la **barra di stato**: modalità e profilo, ramo git, avanzamento, carburante delle IA (stimato all'inizio, poi imparato al primo limite vero), coda e ora.
 
 ## Il terminale multi-macchina
 
@@ -78,7 +106,7 @@ Tre livelli, tutti visibili nella pagina STUDIO: **preferenze** valide in ogni p
 
 ## Grafica, mouse e suoni
 
-Temi **neon, fuoco, ghiaccio, matrix** (`/tema`), il **teschio in 3D** nell'intestazione i cui occhi seguono l'IA che sta pensando, **neuroni** che pulsano negli spazi vuoti, emblemi animati negli angoli di DATABASE (cervello nel barattolo) e PROGETTI (mappa stellare), barra di avanzamento, notifiche a comparsa e di sistema, pannelli che si aprono cambiando pagina. All'avvio KORTEX **misura il PC** e sceglie la grafica **piena** o **leggera** (`/grafica` per forzarla, `kortex --leggera` per una volta).
+Temi **neon, fuoco, ghiaccio, matrix, tokyonight, dracula, synthwave, vaporwave** (`/tema`), il **teschio in 3D** nell'intestazione i cui occhi seguono l'IA che sta pensando, **neuroni** che pulsano negli spazi vuoti, emblemi animati negli angoli di DATABASE (cervello nel barattolo) e PROGETTI (mappa stellare), barra di avanzamento, notifiche a comparsa e di sistema, pannelli che si aprono cambiando pagina. All'avvio KORTEX **misura il PC** e sceglie la grafica **piena** o **leggera** (`/grafica` per forzarla, `kortex --leggera` per una volta).
 
 **Mouse**: clic su pagine, schede, macchine, progetti, chat, voci del database, parametri, mappature, file, opzioni delle domande; rotella per scorrere. Per selezionare testo con il mouse acceso: SHIFT+trascina (oppure `/mouse off`).
 
@@ -142,7 +170,11 @@ kortex
 | `/chat nuova` · `/chat apri N` | chat del progetto aperto |
 | `/ripristina [ID]` | punti di ripristino |
 | `/db` | database: aggiungi, nota, cerca, sposta, tag, togli, github, sync, scansiona |
-| `/tema nome` | neon, fuoco, ghiaccio, matrix |
+| `/tema nome` | neon, fuoco, ghiaccio, matrix, tokyonight, dracula, synthwave, vaporwave |
+| `/profilo nome` | programmatore, minecraft, studio, creativo |
+| `/statistiche` | apre la pagina STATISTICHE |
+| `/bolle on\|off` · `/icone auto\|on\|off` | OUTPUT a bolle · icone Nerd Font |
+| `/novita` · `/tutorial` | novità della versione · giro guidato |
 | `/ricorda` · `/dimentica N` · `/memoria` | la memoria |
 | `/team` | torna alla squadra |
 | `/nuova` | in chat diretta, ricomincia la conversazione |

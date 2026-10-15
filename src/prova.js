@@ -36,10 +36,10 @@ export async function provaTutte(config, disponibili, cwd, scrivi) {
       righe.push({ id: d.id, ok: true });
     } else {
       const [cosa, rimedio] = diagnosi(d.id, r);
-      scrivi(`  \x1b[31m✖\x1b[0m ${d.nome.padEnd(8)} ${cosa} (${secondi}s)\n           → ${rimedio}${r.errore ? `\n           dettaglio: ${String(r.errore).split('\n')[0].slice(0, 160)}` : ''}`);
+      scrivi(`  \x1b[31m✗\x1b[0m ${d.nome.padEnd(8)} ${cosa} (${secondi}s)\n           → ${rimedio}${r.errore ? `\n           dettaglio: ${String(r.errore).split('\n')[0].slice(0, 160)}` : ''}`);
       righe.push({ id: d.id, ok: false });
     }
   }
   const buone = righe.filter((x) => x.ok).length;
-  scrivi(`\n${buone}/${righe.length} IA rispondono. ${buone === righe.length ? 'Tutto pronto.' : 'Sistema quelle con la ✖ seguendo il rimedio indicato.'}`);
+  scrivi(`\n${buone}/${righe.length} IA rispondono. ${buone === righe.length ? 'Tutto pronto.' : 'Sistema quelle con la ✗ seguendo il rimedio indicato.'}`);
 }

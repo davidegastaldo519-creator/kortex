@@ -15,7 +15,7 @@ export const C = {
 // Ogni IA ha il suo colore, uguale in tutto il programma.
 export const COLORE_IA = { claude: '#FF8A3D', codex: '#3DDC97', gemini: '#4D9FFF', ollama: '#C9C9D6', antigravity: '#B48CFF' };
 export const SPIN = '⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏';
-export const PAGINE = [['lavoro', 'LAVORO'], ['progetti', 'PROGETTI'], ['database', 'DATABASE'], ['controllo', 'CONTROLLO'], ['studio', 'STUDIO'], ['guida', 'GUIDA']];
+export const PAGINE = [['lavoro', 'LAVORO'], ['progetti', 'PROGETTI'], ['database', 'DATABASE'], ['controllo', 'CONTROLLO'], ['studio', 'STUDIO'], ['statistiche', 'STATISTICHE'], ['guida', 'GUIDA']];
 
 export const lim01 = (x) => Math.max(0, Math.min(1, x || 0));
 export const accorcia = (s, n) => (s.length <= n ? s : '…' + s.slice(-Math.max(1, n - 1)));
@@ -27,6 +27,26 @@ export function avvolgi(righe, w) {
   for (const r of righe) {
     if (r.length <= w) out.push(r);
     else for (let i = 0; i < r.length; i += w) out.push(r.slice(i, i + w));
+  }
+  return out;
+}
+
+// Come avvolgi, ma va a capo tra le parole; le righe che iniziano con "• " continuano rientrate.
+export function avvolgiParole(righe, w) {
+  const out = [];
+  for (const r of righe) {
+    const rientro = /^\s*[•·-] /.test(r) ? ' '.repeat(r.indexOf(' ', r.search(/\S/)) + 1) : '';
+    let resto = r;
+    let primo = true;
+    while (resto.length > (primo ? w : w - rientro.length)) {
+      const lim = primo ? w : w - rientro.length;
+      let taglio = resto.lastIndexOf(' ', lim);
+      if (taglio < lim * 0.4) taglio = lim;
+      out.push((primo ? '' : rientro) + resto.slice(0, taglio).trimEnd());
+      resto = resto.slice(taglio).trimStart();
+      primo = false;
+    }
+    out.push((primo ? '' : rientro) + resto);
   }
   return out;
 }
@@ -225,7 +245,7 @@ function TeschioPiccolo({ tick, occupato, sguardo = [0, 0], lampeggio }) {
   const sx = sguardo[0] > 0.3 ? ['█ ', '●', '█', '●', '█ '] : sguardo[0] < -0.3 ? [' █', '●', '█', '●', ' █'] : ['█ ', '●', '█', '●', ' █'];
   return html`<${Box} flexDirection="column" marginRight=${1}>
     <${Text}><${Text} color=${osso}>▄██<//><${Text} color=${crepa}>╲<//><${Text} color=${osso}>██▄<//><//>
-    <${Text}><${Text} color=${osso}>${sx[0]}<//><${Text} color=${occhio}>${chiuso ? '▬' : sx[1]}<//><${Text} color=${osso}>${sx[2]}<//><${Text} color=${occhio}>${chiuso ? '▬' : sx[3]}<//><${Text} color=${osso}>${sx[4]}<//><//>
+    <${Text}><${Text} color=${osso}>${sx[0]}<//><${Text} color=${occhio}>${chiuso ? '─' : sx[1]}<//><${Text} color=${osso}>${sx[2]}<//><${Text} color=${occhio}>${chiuso ? '─' : sx[3]}<//><${Text} color=${osso}>${sx[4]}<//><//>
     <${Text} color=${osso}> ▀▄▀▄▀<//>
   <//>`;
 }
@@ -264,7 +284,7 @@ function Strumenti({ tel, disponibili, tick, config, suoni, mouse }) {
     <${Text}><${Text} color=${C.grigio}>│ idee <//><${Text} color=${C.rosa}>${sparkline(tel?.pensieri || [], 14)}<//><${Text} color=${C.gesso}> ${String(pensieri).padStart(3)}/s<//><//>
     <${Text} wrap="truncate-end"><${Text} color=${C.grigio}>│ ia   <//>${Object.values(disponibili).map((d) => html`<${Text} key=${d.id} color=${!d.ok ? C.scuro : d.limitato ? C.rosso : tel?.ia?.[d.id]?.attivo ? C.rosa : COLORE_IA[d.id]}>${!d.ok ? '○' : tel?.ia?.[d.id]?.attivo ? SPIN[tick % SPIN.length] : '●'} <//>`)}<${Text} color=${C.scuro}>${Object.values(disponibili).filter((d) => d.ok).length}/${Object.keys(disponibili).length}<//><//>
     <${Text}><${Text} color=${C.grigio}>│ ora  <//><${Text} color=${C.gesso}>${ora()}<//><${Text} color=${C.scuro}>  ${config.animazioni === 'leggera' ? 'grafica leggera' : config.animazioni === 'spenta' ? 'grafica spenta' : 'grafica piena'}<//><//>
-    <${Text}><${Text} color=${C.scuro}>└ <//><${Text} color=${C.scuro}>${suoni ? '♪ suoni' : '♪ muto'} · ${mouse ? '▸ mouse' : '▸ tastiera'} · ${'─'.repeat(6)}<//><//>
+    <${Text}><${Text} color=${C.scuro}>└ <//><${Text} color=${C.scuro}>${suoni ? '◎ suoni' : '◎ muto'} · ${mouse ? '▸ mouse' : '▸ tastiera'} · ${'─'.repeat(6)}<//><//>
   <//>`;
 }
 

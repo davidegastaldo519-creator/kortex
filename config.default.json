@@ -184,5 +184,8 @@
   "revisoreVerifica": true,
   "grafica": "auto",
   "suoni": true,
-  "mouse": true
+  "mouse": true,
+  "icone": "auto",
+  "bolle": true,
+  "profilo": null
 }

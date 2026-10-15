@@ -49,7 +49,7 @@ export function eseguiIA({ cfg, prompt, cwd, sessione, extra, modello, adddir, t
     const resume = sessione && cfg.resume ? cfg.resume.map((x) => x.replace('{session}', sessione)) : [];
     const args = costruisciArgs(cfg.args, { prompt, extra, resume, modello, adddir });
     const mostrati = args.map((a) => (a === prompt ? '«prompt»' : a)).join(' ');
-    onLog?.(`▶ ${cfg.nome}: ${cfg.bin} ${mostrati}`.slice(0, 160));
+    onLog?.(`▸ ${cfg.nome}: ${cfg.bin} ${mostrati}`.slice(0, 160));
 
     let proc;
     try {

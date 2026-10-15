@@ -61,8 +61,8 @@ export const PARAMETRI = [
     spiega: 'Clic su pagine, schede, voci e pulsanti; rotella per scorrere. Con il mouse acceso, per selezionare testo nel terminale tieni premuto SHIFT mentre trascini.',
   },
   {
-    chiave: 'tema', nome: 'Tema di colore', tipo: 'scelta', valori: ['neon', 'fuoco', 'ghiaccio', 'matrix'],
-    spiega: 'I colori di tutto KORTEX: interfaccia, logo e animazione iniziale. NEON viola e ciano, FUOCO rosso e oro, GHIACCIO azzurro e bianco, MATRIX verde.',
+    chiave: 'tema', nome: 'Tema di colore', tipo: 'scelta', valori: ['neon', 'fuoco', 'ghiaccio', 'matrix', 'tokyonight', 'dracula', 'synthwave', 'vaporwave'],
+    spiega: 'I colori di tutto KORTEX: interfaccia, logo e animazione iniziale. NEON viola e ciano, FUOCO rosso e oro, GHIACCIO azzurro e bianco, MATRIX verde, TOKYO NIGHT blu notte, DRACULA viola e rosa, SYNTHWAVE tramonto anni 80, VAPORWAVE pastello.',
   },
   {
     chiave: 'memoriaAutomatica', nome: 'Memoria automatica', tipo: 'sino',
