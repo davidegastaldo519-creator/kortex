@@ -1,5 +1,10 @@
 # Le novità di KORTEX
 
+## 2.3.1
+- **Claude per primo con gli strumenti**: nelle richieste con uno strumento (per esempio @blender) i ruoli esecutore, operatore e revisore vanno a Claude, perché è l'unica CLI che riceve il server MCP e può comandare davvero il programma; le altre IA restano di riserva e tornano in prima fila se Claude non c'è o ha finito il carburante. Senza strumenti la scelta dell'IA resta identica a prima.
+- **Il revisore controlla dentro lo strumento**: quando c'è uno strumento attivo, al revisore viene chiesto di verificare il risultato usando lo strumento stesso (per Blender: leggere la scena con gli strumenti mcp__blender), non solo i file sul disco.
+- **Nuove prove automatiche**: con npm test si controlla che con gli strumenti Claude vada in testa, che le altre IA restino in coda nello stesso ordine, che niente cambi se Claude è al limite o non c'è, che gli altri ruoli non cambino mai, e che la frase in più per il revisore compaia solo con gli strumenti.
+
 ## 2.3.0
 - **Gli STRUMENTI**: i programmi di fuori diventano strumenti della squadra. Ogni strumento è una scheda .json in ~/.config/kortex/strumenti: nome, cosa sa fare, come si controlla se è acceso e quale server di strumenti avviare.
 - **@blender nella richiesta**: scrivi @ e il nome dello strumento per darlo alla squadra; la parola @ sparisce dal testo prima che la richiesta parta.

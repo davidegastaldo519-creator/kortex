@@ -110,6 +110,8 @@ Gli **strumenti** sono i programmi di fuori che le IA possono comandare da sole.
 
 Scrivi **`@blender`** dentro la richiesta: la parola `@` sparisce dal testo, il contesto dello strumento entra nel prompt di **tutti i ruoli** e Claude riceve il server MCP sulla sua riga di comando. Prima di partire KORTEX controlla se lo strumento è acceso e, se non lo è, lo scrive nell'OUTPUT con il rimedio (per Blender basta aprirlo, il server parte da solo). `/strumento` elenca gli strumenti con il loro stato (■ acceso, □ spento, ? sconosciuto), `/strumento blender` mostra la scheda intera e dove sta il file.
 
+Quando la richiesta usa uno strumento, i ruoli **esecutore**, **operatore** e **revisore** vanno a **Claude**: è l'unica CLI che riceve il server MCP, quindi l'unica che può comandare davvero il programma. Le altre IA restano di **riserva** e tornano in prima fila se Claude non c'è o ha finito il carburante. Al revisore, in più, viene chiesto di controllare il risultato **dentro lo strumento** (per Blender: leggendo la scena con gli strumenti `mcp__blender`), non solo i file sul disco. Senza strumenti non cambia niente rispetto a prima.
+
 ## Grafica, mouse e suoni
 
 Temi **neon, fuoco, ghiaccio, matrix, tokyonight, dracula, synthwave, vaporwave** (`/tema`), il **teschio in 3D** nell'intestazione i cui occhi seguono l'IA che sta pensando, **neuroni** che pulsano negli spazi vuoti, emblemi animati negli angoli di DATABASE (cervello nel barattolo) e PROGETTI (mappa stellare), barra di avanzamento, notifiche a comparsa e di sistema, pannelli che si aprono cambiando pagina. All'avvio KORTEX **misura il PC** e sceglie la grafica **piena** o **leggera** (`/grafica` per forzarla, `kortex --leggera` per una volta).
@@ -194,7 +196,7 @@ kortex
 
 Da riga di comando: `kortex --check`, `kortex --prova`, `kortex --no-anim`, `kortex --leggera`, `kortex --aggiorna`, `kortex --versione`.
 
-Dentro la cartella del progetto (non dell'installazione) c'è anche `npm test`: lancia le prove automatiche di KORTEX, che controllano la lettura del JSON nelle risposte delle IA, il riconoscimento del limite di abbonamento e gli strumenti (menzioni `@`, argomenti MCP per Claude, percorsi con la `~`, copia delle schede che non sovrascrive le tue).
+Dentro la cartella del progetto (non dell'installazione) c'è anche `npm test`: lancia le prove automatiche di KORTEX, che controllano la lettura del JSON nelle risposte delle IA, il riconoscimento del limite di abbonamento e gli strumenti (menzioni `@`, argomenti MCP per Claude, percorsi con la `~`, copia delle schede che non sovrascrive le tue, e la scelta dell'IA quando c'è uno strumento).
 
 **Il numero in dollari in alto non è una spesa.** Claude Code riporta quanto costerebbe il lavoro a prezzi API, anche quando usi l'abbonamento a prezzo fisso. Pagheresti davvero solo se sul computer fosse impostata una chiave API (`ANTHROPIC_API_KEY`).
 

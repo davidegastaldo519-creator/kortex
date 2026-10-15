@@ -80,6 +80,8 @@ Gli strumenti sono i programmi di fuori che le IA possono comandare da sole: Ble
 - /strumento elenca quelli che hai, con icona, nome, tasto e stato: ■ acceso, □ spento, ? non si può sapere
 - /strumento blender mostra la scheda intera e il percorso del file, così la puoi correggere
 - @blender dentro la richiesta dà quello strumento alla squadra: la parola @ sparisce dal testo, il contesto dello strumento entra nel prompt di tutti i ruoli e Claude riceve il server MCP sulla sua riga di comando
+- Con uno strumento nella richiesta, esecutore, operatore e revisore vanno a Claude: è l'unica CLI che riceve il server MCP, quindi l'unica che può comandare davvero il programma. Le altre IA restano di riserva e tornano in prima fila se Claude non c'è o ha finito il carburante.
+- Con uno strumento attivo il revisore controlla il risultato dentro lo strumento stesso (per Blender: legge la scena con gli strumenti mcp__blender), non solo i file sul disco.
 Se lo strumento risulta spento, KORTEX lo scrive nell'OUTPUT prima di partire: per Blender basta aprirlo, il server parte da solo.
 La prima volta KORTEX copia le schede che porta con sé; le tue non vengono mai sovrascritte dagli aggiornamenti.
 
@@ -222,7 +224,7 @@ Il limite vero degli abbonamenti sono i messaggi per finestra di tempo. Una rich
 Ogni progetto ha una cartella nascosta .kortex con il diario (STATO.md), le conversazioni da riprendere e i tuoi appunti. Conviene aggiungerla al .gitignore del progetto.
 
 # LE PROVE AUTOMATICHE
-- KORTEX ha delle prove che controllano da sole le parti più delicate del motore: la lettura del JSON dentro le risposte delle IA (blocchi di codice marcati json, graffe scritte dentro le virgolette, esempi messi prima del risultato vero), il riconoscimento del limite di abbonamento (per non passare alla riserva senza motivo) e gli strumenti (le menzioni @, gli argomenti MCP passati a Claude, i percorsi scritti con la ~, e la copia delle schede che non sovrascrive mai le tue).
+- KORTEX ha delle prove che controllano da sole le parti più delicate del motore: la lettura del JSON dentro le risposte delle IA (blocchi di codice marcati json, graffe scritte dentro le virgolette, esempi messi prima del risultato vero), il riconoscimento del limite di abbonamento (per non passare alla riserva senza motivo) e gli strumenti (le menzioni @, gli argomenti MCP passati a Claude, i percorsi scritti con la ~, la copia delle schede che non sovrascrive mai le tue, e la scelta dell'IA quando c'è uno strumento, cioè Claude per primo con le altre di riserva).
 - Si lanciano da un terminale normale, dentro la cartella del progetto KORTEX (non dell'installazione): npm test. Se finisce con "fail 0" va tutto bene.
 
 # PROBLEMI COMUNI

@@ -8,13 +8,34 @@ import { trovaMenzioni, togliMenzioni, contestoStrumenti, argomentiMcp, controll
 
 // ---------- scelta dell'IA per un ruolo, con riserva automatica ----------
 
-function candidati(ruolo, ctx, { preferisci, evita } = {}) {
+// I ruoli che toccano davvero lo strumento esterno: chi lavora sui file, chi lancia
+// i comandi e chi controlla il risultato. Gli altri ruoli non cambiano mai ordine.
+const RUOLI_STRUMENTI = ['esecutore', 'operatore', 'revisore'];
+
+// Con uno strumento esterno in gioco, Claude va messo per primo: è l'unica CLI a cui
+// KORTEX passa il server MCP sulla riga di comando (vedi `argsDiRuolo` qui sotto), quindi
+// è l'unica che può davvero comandare lo strumento. Le altre IA restano dietro, nello
+// stesso ordine di prima, e fanno da riserva se Claude non c'è o è al limite.
+// La lista che arriva qui è già ripulita da chi non è installato o ha finito il
+// carburante, perciò basta guardare se 'claude' è dentro.
+// Nota: con gli strumenti Claude passa davanti anche a `evita` (gli "occhi nuovi" del
+// revisore): è voluto, perché un revisore che non vede dentro lo strumento non potrebbe
+// controllare niente.
+export function ordinaPerStrumenti(lista, ruolo, conStrumenti) {
+  if (!conStrumenti || !RUOLI_STRUMENTI.includes(ruolo)) return lista;
+  if (!lista.includes('claude')) return lista;
+  return ['claude', ...lista.filter((x) => x !== 'claude')];
+}
+
+export function candidati(ruolo, ctx, { preferisci, evita, conStrumenti } = {}) {
   let lista = (ctx.config.ruoli[ruolo] || []).filter(
     (id) => ctx.config.ia[id] && ctx.disponibili[id]?.ok && !ctx.disponibili[id]?.limitato
   );
   if (preferisci && lista.includes(preferisci)) lista = [preferisci, ...lista.filter((x) => x !== preferisci)];
   if (evita && lista.length > 1 && lista.includes(evita)) lista = [...lista.filter((x) => x !== evita), evita];
-  return lista;
+  // per ultimo, perché con gli strumenti questa scelta vale più di tutte le altre
+  const strumenti = conStrumenti === undefined ? (ctx.argsMcp?.length || 0) > 0 : conStrumenti;
+  return ordinaPerStrumenti(lista, ruolo, strumenti);
 }
 
 // Quale profilo di permessi usa una chiamata: lettura, scrittura (prudente/totale), comando (operatore), verifica (revisore).
@@ -201,7 +222,8 @@ Regole:
 - se un comando fallisce, cerca di capire perché; se la soluzione è semplice e sicura (un pacchetto mancante nel progetto, un percorso sbagliato) applicala e riprova una volta;
 - alla fine scrivi: i comandi lanciati, l'esito di ognuno (riuscito/fallito, con le righe importanti dell'output), e cosa hai sistemato.`;
 
-const promptRevisore = (c, riepilogo, diff, conVerifica, parallelo) => `Sei il REVISORE. Controlla il lavoro fatto su questo compito.
+// esportata anche per le prove automatiche: è solo testo, non lancia nessuna IA
+export const promptRevisore = (c, riepilogo, diff, conVerifica, parallelo, conStrumenti) => `Sei il REVISORE. Controlla il lavoro fatto su questo compito.
 
 COMPITO: ${c.titolo}
 ${c.descrizione}
@@ -213,7 +235,7 @@ ${diff ? `MODIFICHE AI FILE:\n${diff}` : 'Il progetto non usa git: verifica legg
 
 Regole importanti:
 - Segnala SOLO problemi concreti e verificabili: errori, file mancanti, richieste del compito non soddisfatte.
-${conVerifica ? '- Puoi LANCIARE comandi di sola verifica (i test, node file.js, python3 file.py, un controllo di sintassi) per vedere se funziona davvero: non fidarti del riepilogo. NON modificare i file.\n' : ''}${parallelo ? '- Altri compiti stanno lavorando in parallelo su altri file: nelle modifiche puoi vedere anche le loro. Giudica solo ciò che riguarda questo compito.\n' : ''}- Se non riesci a leggere o a verificare qualcosa, NON è un errore di chi ha lavorato: scrivi ESITO: OK e annota cosa non hai potuto verificare.
+${conVerifica ? '- Puoi LANCIARE comandi di sola verifica (i test, node file.js, python3 file.py, un controllo di sintassi) per vedere se funziona davvero: non fidarti del riepilogo. NON modificare i file.\n' : ''}${conStrumenti ? '- Verifica il risultato usando lo strumento stesso (per Blender: leggi la scena con gli strumenti mcp__blender), non solo i file sul disco.\n' : ''}${parallelo ? '- Altri compiti stanno lavorando in parallelo su altri file: nelle modifiche puoi vedere anche le loro. Giudica solo ciò che riguarda questo compito.\n' : ''}- Se non riesci a leggere o a verificare qualcosa, NON è un errore di chi ha lavorato: scrivi ESITO: OK e annota cosa non hai potuto verificare.
 - Non riscrivere il lavoro e non proporre stili alternativi: non è il tuo compito.
 
 La prima riga deve essere esattamente "ESITO: OK" oppure "ESITO: CORREGGI". Poi al massimo 5 punti brevi.`;
@@ -328,7 +350,8 @@ function leggiEsito(testo) {
 async function revisiona(compito, esecuzione, ctx, indice, scrivi, parallelo) {
   ctx.ui.titolo(`REVISIONE — ${compito.titolo}`);
   const conVerifica = ctx.config.revisoreVerifica !== false;
-  const r = await eseguiRuolo('revisore', promptRevisore(compito, esecuzione.testo, diffProgetto(ctx.cwd), conVerifica, parallelo), ctx, {
+  const conStrumenti = (ctx.strumenti?.length || 0) > 0;
+  const r = await eseguiRuolo('revisore', promptRevisore(compito, esecuzione.testo, diffProgetto(ctx.cwd), conVerifica, parallelo, conStrumenti), ctx, {
     modalita: 'verifica',
     compito: indice,
     evita: ctx.config.revisoreIndipendente === false ? null : esecuzione.ia, // occhi nuovi, se possibile

@@ -1,5 +1,6 @@
 // Prove automatiche degli strumenti esterni: menzioni @, argomenti MCP per Claude,
-// percorsi con la ~ e copia delle schede predefinite.
+// percorsi con la ~, copia delle schede predefinite, e la scelta dell'IA quando la
+// richiesta usa uno strumento (Claude per primo) con la frase in più per il revisore.
 // Si lanciano con:  npm test     (oppure  node --test test/strumenti.test.mjs)
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -15,6 +16,7 @@ import {
   strumentoPerId,
   copiaSchedePredefinite,
 } from '../src/strumenti.js';
+import { candidati, ordinaPerStrumenti, promptRevisore } from '../src/director.js';
 
 // La cartella di questa prova e quella delle schede che KORTEX porta con sé.
 // Si ricavano dal file, così le prove funzionano da qualunque cartella si lanci npm test.
@@ -117,4 +119,91 @@ test('copiaSchedePredefinite non sovrascrive le schede già presenti', () => {
     fs.rmSync(mia, { recursive: true, force: true });
     fs.rmSync(vuota, { recursive: true, force: true });
   }
+});
+
+// ---------- la scelta dell'IA quando c'è uno strumento ----------
+
+// Un contesto finto, con gli stessi elenchi di config.default.json: non lancia
+// nessuna IA, serve solo a far scegliere la lista dei candidati.
+function ctxFinto({ claudeOk = true, claudeLimitato = false, strumenti = false } = {}) {
+  return {
+    config: {
+      ruoli: {
+        esecutore: ['claude', 'codex'],
+        operatore: ['claude', 'codex'],
+        revisore: ['codex', 'claude', 'gemini', 'ollama'],
+        pianificatore: ['claude', 'codex', 'gemini', 'ollama'],
+      },
+      ia: { claude: {}, codex: {}, gemini: {}, ollama: {} },
+    },
+    disponibili: {
+      claude: { ok: claudeOk, limitato: claudeLimitato },
+      codex: { ok: true },
+      gemini: { ok: true },
+      ollama: { ok: true },
+    },
+    // con gli strumenti, KORTEX ha già preparato gli argomenti MCP per Claude
+    argsMcp: strumenti ? ['--mcp-config', '{}', '--allowedTools', 'mcp__blender'] : [],
+  };
+}
+
+// h) senza strumenti l'ordine è quello di sempre: per il revisore codex resta primo.
+test('senza strumenti l ordine dei candidati non cambia', () => {
+  const ctx = ctxFinto();
+  assert.deepEqual(candidati('revisore', ctx), ['codex', 'claude', 'gemini', 'ollama']);
+  assert.deepEqual(candidati('esecutore', ctx), ['claude', 'codex']);
+  assert.deepEqual(candidati('operatore', ctx), ['claude', 'codex']);
+});
+
+// i) con uno strumento MCP Claude va in testa e le altre restano in coda
+// nello stesso ordine di prima, come riserva.
+test('con gli strumenti claude va in testa', () => {
+  const ctx = ctxFinto({ strumenti: true });
+  assert.deepEqual(candidati('revisore', ctx), ['claude', 'codex', 'gemini', 'ollama']);
+  assert.deepEqual(candidati('esecutore', ctx), ['claude', 'codex']);
+  assert.deepEqual(candidati('operatore', ctx), ['claude', 'codex']);
+});
+
+// l) se Claude è al limite o non è installato, l'ordine resta quello di sempre
+// (e Claude non compare affatto, perché il filtro lo toglie).
+test('con gli strumenti ma claude al limite o assente l ordine non cambia', () => {
+  const alLimite = ctxFinto({ strumenti: true, claudeLimitato: true });
+  assert.deepEqual(candidati('revisore', alLimite), ['codex', 'gemini', 'ollama']);
+  assert.deepEqual(candidati('esecutore', alLimite), ['codex']);
+
+  const assente = ctxFinto({ strumenti: true, claudeOk: false });
+  assert.deepEqual(candidati('revisore', assente), ['codex', 'gemini', 'ollama']);
+  assert.deepEqual(candidati('operatore', assente), ['codex']);
+});
+
+// m) gli altri ruoli non cambiano mai, nemmeno con gli strumenti.
+test('un ruolo diverso non cambia ordine con gli strumenti', () => {
+  const ctx = ctxFinto({ strumenti: true });
+  assert.deepEqual(candidati('pianificatore', ctx), ['claude', 'codex', 'gemini', 'ollama']);
+  assert.deepEqual(
+    ordinaPerStrumenti(['codex', 'claude'], 'direttore', true),
+    ['codex', 'claude']
+  );
+});
+
+// n) con gli strumenti Claude passa davanti anche a "evita" (gli occhi nuovi del
+// revisore): senza strumenti invece "evita" comanda come prima.
+test('con gli strumenti claude vince anche su evita', () => {
+  const ctx = ctxFinto({ strumenti: true });
+  assert.deepEqual(candidati('revisore', ctx, { evita: 'claude' }), ['claude', 'codex', 'gemini', 'ollama']);
+  const senza = ctxFinto();
+  assert.deepEqual(candidati('revisore', senza, { evita: 'codex' }), ['claude', 'gemini', 'ollama', 'codex']);
+});
+
+// o) la frase in più per il revisore compare solo quando ci sono strumenti.
+test('il prompt del revisore parla dello strumento solo con gli strumenti', () => {
+  const compito = { titolo: 'prova', descrizione: 'una prova' };
+  const conStrumenti = promptRevisore(compito, 'riepilogo', '', true, false, true);
+  const senzaStrumenti = promptRevisore(compito, 'riepilogo', '', true, false, false);
+  assert.ok(conStrumenti.includes('usando lo strumento stesso'), 'con gli strumenti la frase ci deve essere');
+  assert.ok(conStrumenti.includes('mcp__blender'), 'la frase nomina gli strumenti mcp__blender');
+  assert.equal(senzaStrumenti.includes('usando lo strumento stesso'), false);
+  assert.equal(senzaStrumenti.includes('mcp__blender'), false);
+  // senza strumenti il testo è identico a quello di prima (nessun parametro passato)
+  assert.equal(senzaStrumenti, promptRevisore(compito, 'riepilogo', '', true, false));
 });
