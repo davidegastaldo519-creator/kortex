@@ -1,5 +1,14 @@
 # Le novità di KORTEX
 
+## 2.3.0
+- **Gli STRUMENTI**: i programmi di fuori diventano strumenti della squadra. Ogni strumento è una scheda .json in ~/.config/kortex/strumenti: nome, cosa sa fare, come si controlla se è acceso e quale server di strumenti avviare.
+- **@blender nella richiesta**: scrivi @ e il nome dello strumento per darlo alla squadra; la parola @ sparisce dal testo prima che la richiesta parta.
+- **Contesto per tutti i ruoli e MCP per Claude**: quello che lo strumento sa fare entra nel prompt di direttore, pianificatore, esecutore, operatore e revisore, e Claude riceve il server MCP sulla sua riga di comando, così può comandarlo davvero.
+- **Avviso se lo strumento è spento**: prima di partire KORTEX controlla la porta dello strumento e scrive nell'OUTPUT cosa fare (per Blender basta aprirlo, il server parte da solo).
+- **/strumento**: elenca gli strumenti con stato acceso o spento; **/strumento blender** mostra la scheda intera e dove sta il file.
+- **La scheda di Blender**: KORTEX porta con sé la scheda già pronta di **Blender**, quindi il 3D si comanda da subito senza configurare niente; le schede che modifichi tu non vengono mai sovrascritte dagli aggiornamenti.
+- **Prove automatiche degli strumenti**: con npm test si controllano le menzioni @ nella richiesta, gli argomenti MCP passati a Claude, i percorsi scritti con la ~ e la copia delle schede, che non sovrascrive mai quelle tue.
+
 ## 2.2.3
 - **Niente più falsi limiti di abbonamento**: KORTEX non passa più alla riserva quando parole come "quota" o "rate limit" compaiono solo nel discorso dell'IA; guarda solo la fine di quello che ha scritto, e solo se il comando è uscito male.
 - **Lettura del JSON ancora più solida**: una virgoletta spaiata prima del JSON (per esempio uno schermo "da 15 pollici" scritto con il simbolo) non manda più a monte la lettura del piano.

@@ -75,6 +75,14 @@ Come lo usano le IA:
 Il GUARDIANO: KORTEX sorveglia la cartella del database. Un file che compare lì dentro (scritto da un'IA, copiato a mano, arrivato da GitHub) viene catalogato da solo pochi secondi dopo; all'avvio una scansione sistema quello che è arrivato a KORTEX chiuso. /db scansiona la lancia a mano.
 Copia su GitHub: /db github crea un repository privato kortex-database e lo carica; su una macchina nuova /db scarica tuo-utente lo riporta giù. Da lì in poi KORTEX sincronizza da solo in sottofondo: scarica le novità all'avvio, carica dopo ogni cosa nuova (voci, preferenze, soluzioni) e all'uscita. /db sync lo fa subito. Così hai la stessa memoria su PC, Lenovo e tablet.
 
+# GLI STRUMENTI
+Gli strumenti sono i programmi di fuori che le IA possono comandare da sole: Blender per il 3D, e domani quello che aggiungi tu. Ogni strumento è una scheda .json in ~/.config/kortex/strumenti: dice come si chiama, cosa sa fare, come si controlla se è acceso e quale server di strumenti (MCP) va avviato. Se vuoi tenere le schede altrove, scrivi la cartella in "cartellaStrumenti" nella configurazione.
+- /strumento elenca quelli che hai, con icona, nome, tasto e stato: ■ acceso, □ spento, ? non si può sapere
+- /strumento blender mostra la scheda intera e il percorso del file, così la puoi correggere
+- @blender dentro la richiesta dà quello strumento alla squadra: la parola @ sparisce dal testo, il contesto dello strumento entra nel prompt di tutti i ruoli e Claude riceve il server MCP sulla sua riga di comando
+Se lo strumento risulta spento, KORTEX lo scrive nell'OUTPUT prima di partire: per Blender basta aprirlo, il server parte da solo.
+La prima volta KORTEX copia le schede che porta con sé; le tue non vengono mai sovrascritte dagli aggiornamenti.
+
 # I PUNTI DI RIPRISTINO
 Prima e dopo ogni richiesta KORTEX fotografa i file del progetto in un archivio nascosto (.kortex/istantanee.git), separato dal tuo git: la tua storia non viene toccata.
 - /ripristina mostra gli ultimi punti; /ripristina ID riporta tutti i file a quel momento, togliendo anche quelli creati dopo
@@ -151,6 +159,7 @@ Si scrivono nella barra in basso, iniziano con la barra /.
 - /chat nuova [titolo] · /chat apri N: le chat del progetto
 - /ripristina [ID]: punti di ripristino
 - /db: tutti i comandi del database (/db scansiona cataloga i file arrivati da soli)
+- /strumento · /strumento blender: gli strumenti esterni e il loro stato (nella richiesta: @blender)
 - /tema neon | fuoco | ghiaccio | matrix | tokyonight | dracula | synthwave | vaporwave: colori di tutto KORTEX
 - /profilo programmatore | minecraft | studio | creativo: prepara KORTEX per quel tipo di lavoro (/profilo da solo li elenca)
 - /statistiche: apre la pagina STATISTICHE
@@ -213,7 +222,7 @@ Il limite vero degli abbonamenti sono i messaggi per finestra di tempo. Una rich
 Ogni progetto ha una cartella nascosta .kortex con il diario (STATO.md), le conversazioni da riprendere e i tuoi appunti. Conviene aggiungerla al .gitignore del progetto.
 
 # LE PROVE AUTOMATICHE
-- KORTEX ha delle prove che controllano da sole la parte più delicata del motore: la lettura del JSON dentro le risposte delle IA (blocchi di codice marcati json, graffe scritte dentro le virgolette, esempi messi prima del risultato vero).
+- KORTEX ha delle prove che controllano da sole le parti più delicate del motore: la lettura del JSON dentro le risposte delle IA (blocchi di codice marcati json, graffe scritte dentro le virgolette, esempi messi prima del risultato vero), il riconoscimento del limite di abbonamento (per non passare alla riserva senza motivo) e gli strumenti (le menzioni @, gli argomenti MCP passati a Claude, i percorsi scritti con la ~, e la copia delle schede che non sovrascrive mai le tue).
 - Si lanciano da un terminale normale, dentro la cartella del progetto KORTEX (non dell'installazione): npm test. Se finisce con "fail 0" va tutto bene.
 
 # PROBLEMI COMUNI

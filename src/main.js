@@ -80,12 +80,15 @@ Configurazione: ${FILE_CONFIG}`);
   const { applicaGrafica } = await import('./parametri.js');
   const { creaSuoni } = await import('./suoni.js');
   const { migraPreferenze, preferenze } = await import('./memoria.js');
+  const { copiaSchedePredefinite } = await import('./strumenti.js');
   applicaTema(config, C);
   const { applicaIcone } = await import('./icone.js');
   applicaIcone(config);
   if (argv.includes('--leggera')) config.animazioni = 'leggera'; else applicaGrafica(config);
   const suoni = creaSuoni(config);
   try { migraPreferenze(); } catch { /* */ }
+  // le schede degli strumenti predefiniti vanno nella cartella dell'utente, senza toccare le sue
+  try { copiaSchedePredefinite(); } catch { /* */ }
 
   // l'interfaccia si carica mentre scorre la schermata iniziale: all'uscita è già pronta
   const caricamentoUI = import('./ui.js');

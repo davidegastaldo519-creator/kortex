@@ -4,6 +4,7 @@ import { diffProgetto } from './state.js';
 import { DIR_DB, bloccoConoscenze, aggiungiSoluzione } from './database.js';
 import { bloccoPreferenze, ricorda } from './memoria.js';
 import { bloccoProfilo } from './profili.js';
+import { trovaMenzioni, togliMenzioni, contestoStrumenti, argomentiMcp, controllaStato, avvisoSpento, cartellaStrumenti } from './strumenti.js';
 
 // ---------- scelta dell'IA per un ruolo, con riserva automatica ----------
 
@@ -23,6 +24,27 @@ function profiloPer(modalita, config) {
   if (modalita === 'verifica') return config.revisoreVerifica === false ? 'lettura' : 'verifica';
   return 'lettura';
 }
+
+// Unisce gli argomenti del profilo di permessi con quelli degli strumenti esterni.
+// Alcuni profili hanno già --allowedTools: i nomi mcp__… si aggiungono a quel valore,
+// invece di ripetere l'opzione due volte (la CLI ne terrebbe conto una sola).
+function uniscoArgs(base, aggiunti) {
+  const out = [...(base || [])];
+  for (let i = 0; i < (aggiunti || []).length; i += 2) {
+    const opzione = aggiunti[i];
+    const valore = aggiunti[i + 1];
+    const dove = out.indexOf(opzione);
+    if (opzione === '--allowedTools' && dove >= 0) out[dove + 1] = `${out[dove + 1]} ${valore}`.trim();
+    else out.push(opzione, valore);
+  }
+  return out;
+}
+
+// Gli strumenti esterni li sa usare solo la CLI di Claude: alle altre non si passa niente.
+const argsDiRuolo = (id, profilo, ctx) =>
+  id === 'claude'
+    ? uniscoArgs(ctx.config.profili?.[profilo]?.[id] || [], ctx.argsMcp)
+    : ctx.config.profili?.[profilo]?.[id] || [];
 
 export async function eseguiRuolo(ruolo, prompt, ctx, opz = {}) {
   const { config, disponibili, ui, stato, cwd } = ctx;
@@ -49,7 +71,7 @@ export async function eseguiRuolo(ruolo, prompt, ctx, opz = {}) {
       prompt: opz.riprendi && cfg.resume && stato.sessione(id, chiave) ? opz.promptBreve || prompt : prompt,
       cwd,
       sessione: opz.riprendi ? stato.sessione(id, chiave) : null,
-      extra: config.profili?.[profilo]?.[id] || [],
+      extra: argsDiRuolo(id, profilo, ctx),
       modello,
       adddir: fs.existsSync(DIR_DB) ? ['--add-dir', DIR_DB] : [],
       timeoutSecondi: ruolo === 'esecutore' || ruolo === 'operatore' ? config.timeoutSecondi : Math.min(config.timeoutSecondi || 600, 600),
@@ -79,7 +101,24 @@ export async function eseguiRuolo(ruolo, prompt, ctx, opz = {}) {
 const bloccoAllegati = (ctx) =>
   (ctx.allegati?.length
     ? `\nFILE ALLEGATI DALL'UTENTE (dentro la cartella del progetto: leggili o guardali se servono al compito):\n${ctx.allegati.map((a) => '- ' + a).join('\n')}\n`
-    : '') + bloccoConoscenze(ctx.conoscenze) + bloccoPreferenze() + bloccoProfilo(ctx.config) + (ctx.server ? `Il server SSH del profilo è raggiungibile con: ssh ${ctx.server}\n` : '');
+    : '') + bloccoConoscenze(ctx.conoscenze) + contestoStrumenti(ctx.strumenti) + bloccoPreferenze() + bloccoProfilo(ctx.config) + (ctx.server ? `Il server SSH del profilo è raggiungibile con: ssh ${ctx.server}\n` : '');
+
+// Le @ degli strumenti nella richiesta: li prepara per tutti i ruoli, li toglie dal testo
+// e avvisa nell'OUTPUT se uno risulta spento. Restituisce la richiesta pulita.
+// La cartella delle schede arriva da chi chiama (ctx.cartellaStrumenti) o dalla configurazione:
+// così @id trova gli strumenti anche quando le schede non stanno nella cartella predefinita.
+async function preparaStrumenti(richiesta, ctx) {
+  const cartella = ctx.cartellaStrumenti || cartellaStrumenti(ctx.config);
+  const strumenti = trovaMenzioni(richiesta, cartella);
+  ctx.strumenti = strumenti;
+  ctx.argsMcp = argomentiMcp(strumenti);
+  if (!strumenti.length) return richiesta;
+  ctx.ui.out(`◆ strumenti: ${strumenti.map((s) => s.icona + ' ' + s.nome).join(' · ')}\n`);
+  for (const s of strumenti) {
+    if ((await controllaStato(s)) === false) ctx.ui.out(avvisoSpento(s) + '\n');
+  }
+  return togliMenzioni(richiesta, strumenti);
+}
 
 function esecutoriDisponibili(ctx) {
   return candidati('esecutore', ctx)
@@ -321,6 +360,8 @@ export async function eseguiRichiesta({ richiesta, ctx }) {
   const { ui, config, stato } = ctx;
   const inizio = Date.now();
 
+  richiesta = await preparaStrumenti(richiesta, ctx);
+
   ui.pensiero?.('richiesta', richiesta);
   ctx.tel?.nuovaRichiesta(richiesta);
   ui.titolo('DIRETTORE — divido il lavoro');
@@ -479,6 +520,7 @@ export async function chatDiretta({ id, messaggio, ctx, storia }) {
   const cfg = config.ia[id];
   const chiaveChat = ctx.chatId ? `chat:${ctx.chatId}` : 'chat';
   const sessione = cfg.resume ? stato.sessione(id, chiaveChat) : null;
+  messaggio = await preparaStrumenti(messaggio, ctx);
   let prompt = messaggio + bloccoAllegati(ctx);
   if (!cfg.resume && storia.length) {
     const passato = storia
@@ -498,7 +540,7 @@ export async function chatDiretta({ id, messaggio, ctx, storia }) {
     prompt,
     cwd,
     sessione,
-    extra: config.profili?.[config.autonomia]?.[id] || [],
+    extra: argsDiRuolo(id, config.autonomia, ctx),
     modello,
     adddir: fs.existsSync(DIR_DB) ? ['--add-dir', DIR_DB] : [],
     timeoutSecondi: config.timeoutSecondi,

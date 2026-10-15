@@ -188,5 +188,6 @@
   "mouse": true,
   "icone": "auto",
   "bolle": true,
-  "profilo": null
+  "profilo": null,
+  "cartellaStrumenti": null
 }

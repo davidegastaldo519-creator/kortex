@@ -1,0 +1,21 @@
+{
+  "id": "blender",
+  "nome": "Blender",
+  "icona": "◆",
+  "tasto": "b",
+  "descrizione": "modelli, animazioni e render in 3D, comandati da KORTEX",
+  "permessi": "libero",
+  "stato": { "tipo": "porta", "host": "localhost", "porta": 9876 },
+  "avviso": "apri Blender, il server MCP parte da solo",
+  "mcp": {
+    "command": "uv",
+    "args": [
+      "--directory",
+      "~/.config/Claude/Claude Extensions/ant.dir.gh.blender.blender-mcp",
+      "run",
+      "blender-mcp"
+    ]
+  },
+  "progetti": [],
+  "contesto": "Blender è aperto e si comanda con gli strumenti mcp__blender: puoi creare e modificare la scena, muovere gli oggetti e lanciare i render.\nBlender è installato come snap, quindi vede solo la cartella del progetto: script, render ed esportazioni vanno salvati dentro il progetto (per esempio assets/blender/) e mai in /tmp, altrimenti i file sparirebbero.\nPer i giochi esporta in GLB oppure in FBX."
+}

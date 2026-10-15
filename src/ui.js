@@ -9,6 +9,7 @@ import { spawn } from 'node:child_process';
 import { eseguiRichiesta, chatDiretta, catalogaCon, aggiornaMemoria } from './director.js';
 import { applicaTema, TEMI } from './temi.js';
 import { preferenze, ricorda, dimentica, percorsoPreferenze } from './memoria.js';
+import { caricaStrumenti, controllaStato, avvisoSpento, cartellaStrumenti } from './strumenti.js';
 import { campiona, hex, rgbHex } from './colori.js';
 import * as db from './database.js';
 import { apriStato, righeFile, diffColorato } from './state.js';
@@ -658,6 +659,34 @@ function App({ config, disponibili, cwd: cwdIniziale, versione, suoni }) {
         stato.current.annotaAppunto(arg); scrivi('\n✓ appunto scritto sulla lavagna (pagina STUDIO)\n'); return;
       case 'ia': scrivi('\n' + Object.values(disponibili).map((d) => `${d.ok ? '●' : '○'} ${d.nome.padEnd(8)} ${d.ok ? d.versione || '' : d.nota || ''}${d.limitato ? '  [limite raggiunto]' : ''}`).join('\n') + '\n'); return;
       case 'ruoli': scrivi('\n' + Object.entries(config.ruoli).map(([r, l]) => `${r.padEnd(14)} ${l.join(' → ')}`).join('\n') + '\n'); return;
+      case 'strumento': {
+        // il segno dello stato: ■ acceso, □ spento, ? non si può sapere
+        const segno = (s) => (s === true ? '■ acceso' : s === false ? '□ spento' : '? sconosciuto');
+        const cartella = cartellaStrumenti(config);
+        const lista = caricaStrumenti(cartella);
+        if (!lista.length) { scrivi(`\nNessuno strumento. Le schede stanno in ${cartella}: un file .json per ogni strumento.\n`); return; }
+        if (!arg) {
+          Promise.all(lista.map((s) => controllaStato(s).catch(() => null))).then((stati) => {
+            scrivi('\n' + lista.map((s, i) => `  ${s.icona} ${riempiA(s.nome, 12)} @${riempiA(s.id, 10)} ${riempiA(s.tasto ? 'tasto ' + s.tasto : '', 8)} ${segno(stati[i])}`).join('\n')
+              + `\nSchede: ${cartella}\n/strumento id per la scheda completa · @id nella richiesta per dare lo strumento alle IA\n`);
+          });
+          return;
+        }
+        const s = lista.find((x) => x.id === arg.toLowerCase());
+        if (!s) { scrivi(`\n✗ strumento non trovato: ${arg}\n`); return; }
+        controllaStato(s).catch(() => null).then((st) => {
+          scrivi(`\n${s.icona} ${s.nome}  @${s.id}${s.tasto ? '  tasto ' + s.tasto : ''}\n`
+            + `  stato: ${segno(st)}${s.stato?.tipo === 'porta' ? `  (porta ${s.stato.porta} su ${s.stato.host || 'localhost'})` : ''}\n`
+            + (st === false ? `  ${avvisoSpento(s)}\n` : '')
+            + `  permessi: ${s.permessi}\n`
+            + (s.descrizione ? `  ${s.descrizione}\n` : '')
+            + `  progetti: ${s.progetti.length ? s.progetti.join(', ') : 'tutti'}\n`
+            + `  server mcp: ${s.mcp?.command ? `${s.mcp.command} ${(s.mcp.args || []).join(' ')}` : 'nessuno'}\n`
+            + (s.contesto ? `  contesto: ${s.contesto.split('\n').join('\n            ')}\n` : '')
+            + `  scheda: ${s.percorso}\n`);
+        });
+        return;
+      }
       case 'stato': scrivi('\n' + (stato.current.memoria(25) || '(diario vuoto)') + '\n'); return;
       case 'config': scrivi(`\nConfigurazione: ${FILE_CONFIG}\n`); return;
       case 'chat': {
@@ -677,7 +706,7 @@ function App({ config, disponibili, cwd: cwdIniziale, versione, suoni }) {
         avviaRichiesta(arg, { chiedi: true });
         return;
       default:
-        scrivi('\nComandi: /dest  /scheda N  /allega [file]  /allegati  /togli N  /screenshot  /chat X  /team  /nuova  /chiedi richiesta  /coda  /mappa N  /nota testo  /pagina N  /grafica  /suoni  /mouse  /ia  /ruoli  /stato  /pulisci  /esci\nLa pagina GUIDA spiega tutto nel dettaglio.\n');
+        scrivi('\nComandi: /dest  /scheda N  /allega [file]  /allegati  /togli N  /screenshot  /chat X  /team  /nuova  /chiedi richiesta  /coda  /mappa N  /nota testo  /pagina N  /grafica  /suoni  /mouse  /ia  /ruoli  /strumento [id]  /stato  /pulisci  /esci\nLa pagina GUIDA spiega tutto nel dettaglio.\n');
     }
   }
 

@@ -104,6 +104,12 @@ Lavora su **questo PC**, sulle **macchine SSH** (quelle già in `~/.ssh/config` 
 
 Tre livelli, tutti visibili nella pagina STUDIO: **preferenze** valide in ogni progetto e su ogni PC (`/ricorda`, `/dimentica`: stanno nel database e viaggiano con GitHub), **riassunto del progetto** riscritto dopo ogni richiesta e letto dal direttore, **soluzioni imparate** salvate da sole nel database con il tag `#soluzione`. Le scrive il **memorista**, un'IA che lavora in sottofondo dopo ogni richiesta.
 
+## Gli strumenti
+
+Gli **strumenti** sono i programmi di fuori che le IA possono comandare da sole. Ognuno è una scheda `.json` in `~/.config/kortex/strumenti`: nome, cosa sa fare, come si controlla se è acceso (una porta) e quale server di strumenti (**MCP**) avviare. KORTEX porta con sé la scheda di **Blender**, e le tue non vengono mai sovrascritte dagli aggiornamenti.
+
+Scrivi **`@blender`** dentro la richiesta: la parola `@` sparisce dal testo, il contesto dello strumento entra nel prompt di **tutti i ruoli** e Claude riceve il server MCP sulla sua riga di comando. Prima di partire KORTEX controlla se lo strumento è acceso e, se non lo è, lo scrive nell'OUTPUT con il rimedio (per Blender basta aprirlo, il server parte da solo). `/strumento` elenca gli strumenti con il loro stato (■ acceso, □ spento, ? sconosciuto), `/strumento blender` mostra la scheda intera e dove sta il file.
+
 ## Grafica, mouse e suoni
 
 Temi **neon, fuoco, ghiaccio, matrix, tokyonight, dracula, synthwave, vaporwave** (`/tema`), il **teschio in 3D** nell'intestazione i cui occhi seguono l'IA che sta pensando, **neuroni** che pulsano negli spazi vuoti, emblemi animati negli angoli di DATABASE (cervello nel barattolo) e PROGETTI (mappa stellare), barra di avanzamento, notifiche a comparsa e di sistema, pannelli che si aprono cambiando pagina. All'avvio KORTEX **misura il PC** e sceglie la grafica **piena** o **leggera** (`/grafica` per forzarla, `kortex --leggera` per una volta).
@@ -170,6 +176,7 @@ kortex
 | `/chat nuova` · `/chat apri N` | chat del progetto aperto |
 | `/ripristina [ID]` | punti di ripristino |
 | `/db` | database: aggiungi, nota, cerca, sposta, tag, togli, github, sync, scansiona |
+| `/strumento [id]` | gli strumenti esterni e il loro stato (nella richiesta: `@blender`) |
 | `/tema nome` | neon, fuoco, ghiaccio, matrix, tokyonight, dracula, synthwave, vaporwave |
 | `/profilo nome` | programmatore, minecraft, studio, creativo |
 | `/statistiche` | apre la pagina STATISTICHE |
@@ -187,7 +194,7 @@ kortex
 
 Da riga di comando: `kortex --check`, `kortex --prova`, `kortex --no-anim`, `kortex --leggera`, `kortex --aggiorna`, `kortex --versione`.
 
-Dentro la cartella del progetto (non dell'installazione) c'è anche `npm test`: lancia le prove automatiche di KORTEX, che controllano la lettura del JSON nelle risposte delle IA e il riconoscimento del limite di abbonamento.
+Dentro la cartella del progetto (non dell'installazione) c'è anche `npm test`: lancia le prove automatiche di KORTEX, che controllano la lettura del JSON nelle risposte delle IA, il riconoscimento del limite di abbonamento e gli strumenti (menzioni `@`, argomenti MCP per Claude, percorsi con la `~`, copia delle schede che non sovrascrive le tue).
 
 **Il numero in dollari in alto non è una spesa.** Claude Code riporta quanto costerebbe il lavoro a prezzi API, anche quando usi l'abbonamento a prezzo fisso. Pagheresti davvero solo se sul computer fosse impostata una chiave API (`ANTHROPIC_API_KEY`).
 

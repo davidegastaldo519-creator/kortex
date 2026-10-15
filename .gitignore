@@ -1,3 +1,4 @@
 node_modules/
 .kortex/
 prove/uscite/
+test/tmp-strumenti*
