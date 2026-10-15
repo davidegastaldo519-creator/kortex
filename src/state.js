@@ -17,6 +17,9 @@ export function git(cwd, args) {
   }
 }
 
+// Vero solo se c'è almeno un commit: senza HEAD il confronto con HEAD non esiste.
+const haHead = (cwd) => git(cwd, ['rev-parse', '--verify', 'HEAD']) !== null;
+
 const nostro = (riga) => riga.includes(`${CARTELLA}/`);
 
 // Memoria del progetto: un diario leggibile e gli id delle sessioni da riprendere.
@@ -111,24 +114,29 @@ export function righeFile(cwd) {
 
 // Cosa è cambiato nel progetto: lo legge il revisore.
 export function diffProgetto(cwd) {
-  const stat = git(cwd, ['diff', '--stat']);
+  // Con un commit alle spalle si confronta con HEAD (così si vedono anche le modifiche
+  // già aggiunte con git add); in una cartella git appena creata si resta al diff semplice.
+  const base = haHead(cwd) ? ['diff', 'HEAD'] : ['diff'];
+  const stat = git(cwd, [...base, '--stat']);
   if (stat === null) return null;
   const nuovi = (git(cwd, ['ls-files', '--others', '--exclude-standard']) || '')
     .split('\n')
     .filter((r) => r && !nostro(r))
     .join('\n');
-  let diff = git(cwd, ['diff']) || '';
+  let diff = git(cwd, [...base]) || '';
   if (diff.length > 8000) diff = diff.slice(0, 8000) + '\n…(diff troncato)';
   return `FILE NUOVI:\n${nuovi || '(nessuno)'}\n\nRIEPILOGO MODIFICHE:\n${stat.trim() || '(nessuna)'}\n\nDIFF:\n${diff}`;
 }
 
 // Il diff colorato per la scheda DIFF: ogni riga con il suo tipo (file, blocco, piu, meno, testo, nuovo, info).
 export function diffColorato(cwd, massimoRighe = 1500) {
-  const stat = git(cwd, ['diff', '--stat']);
+  // Stessa regola di diffProgetto: con HEAD si confronta con l'ultimo commit, senza HEAD no.
+  const base = haHead(cwd) ? ['diff', 'HEAD'] : ['diff'];
+  const stat = git(cwd, [...base, '--stat']);
   if (stat === null) return { righe: [], riepilogo: 'questa cartella non usa git', vuoto: 'senza git non c\'è un diff: per averlo, nel terminale: git init' };
   const righe = [];
   const nuovi = (git(cwd, ['ls-files', '--others', '--exclude-standard']) || '').split('\n').filter((r) => r && !nostro(r));
-  const diff = git(cwd, ['diff', '--no-color']) || '';
+  const diff = git(cwd, [...base, '--no-color']) || '';
   for (const r of diff.split('\n')) {
     if (righe.length >= massimoRighe) { righe.push({ t: '… (diff troncato)', tipo: 'info' }); break; }
     if (r.startsWith('diff --git')) { righe.push({ t: '', tipo: 'testo' }); righe.push({ t: '▌ ' + r.replace(/^diff --git a\/(.*) b\/.*/, '$1'), tipo: 'file' }); }

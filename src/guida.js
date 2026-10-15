@@ -212,6 +212,10 @@ Il limite vero degli abbonamenti sono i messaggi per finestra di tempo. Una rich
 # LA MEMORIA DEL PROGETTO
 Ogni progetto ha una cartella nascosta .kortex con il diario (STATO.md), le conversazioni da riprendere e i tuoi appunti. Conviene aggiungerla al .gitignore del progetto.
 
+# LE PROVE AUTOMATICHE
+- KORTEX ha delle prove che controllano da sole la parte più delicata del motore: la lettura del JSON dentro le risposte delle IA (blocchi di codice marcati json, graffe scritte dentro le virgolette, esempi messi prima del risultato vero).
+- Si lanciano da un terminale normale, dentro la cartella del progetto KORTEX (non dell'installazione): npm test. Se finisce con "fail 0" va tutto bene.
+
 # PROBLEMI COMUNI
 - Un'IA ha il pallino vuoto: non è installata o non è collegata. Lancia il suo comando da solo (claude, codex, gemini) e fai il login.
 - Gemini dice "chiede di fare il login": esci da KORTEX, lancia gemini da solo in un terminale e accedi con Google.

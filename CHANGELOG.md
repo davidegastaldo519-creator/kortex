@@ -1,5 +1,10 @@
 # Le novità di KORTEX
 
+## 2.2.2
+- **Lettura del JSON più sicura**: nelle risposte delle IA KORTEX riconosce i blocchi di codice marcati json, non si fa confondere dalle graffe scritte dentro le virgolette e prova dall'ultimo blocco valido, così un esempio messo prima non prende il posto del risultato vero.
+- **Il confronto delle modifiche vede anche i file già aggiunti**: la scheda DIFF usa git diff HEAD, quindi mostra pure i file messi nell'indice con git add; se nel progetto non c'è ancora nessun commit torna al comando di prima.
+- **Le prime prove automatiche**: con npm test si controlla da solo che la lettura del JSON funzioni in tutti i casi difficili.
+
 ## 2.2.1
 - **Claude non viene più fermato per sbaglio**: mentre scrive un file lungo manda segni di vita, così il guardiano del silenzio non lo crede più bloccato e non passa alla riserva senza motivo.
 - **Simboli del REGISTRO**: l'avvio di una CLI (▸ ciano) e l'uso di uno strumento (◆ viola) adesso si distinguono a prima vista.

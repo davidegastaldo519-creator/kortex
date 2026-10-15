@@ -187,10 +187,60 @@ const promptCorrezioneCompleta = (c, piano, note, cwd, ctx) =>
 
 // ---------- lettura delle risposte ----------
 
-function estraiJson(testo) {
-  const m = (testo || '').match(/\{[\s\S]*\}/);
-  if (!m) return null;
-  try { return JSON.parse(m[0]); } catch { return null; }
+// Pesca l'oggetto JSON dentro una risposta libera dell'IA.
+// Tre passaggi: prima i blocchi di codice marcati dall'IA, poi una scansione
+// carattere per carattere che conta le graffe, infine la prova dall'ultimo al primo.
+export function estraiJson(testo) {
+  const t = String(testo || '');
+
+  // 1) prima i blocchi di codice marcati dall'IA: quelli con l'etichetta json e,
+  // se nessuno di quelli funziona, anche i blocchi di codice generici.
+  const raccogli = (re) => { const fuori = []; let m; while ((m = re.exec(t)) !== null) fuori.push(m[1] || ''); return fuori; };
+  const provaBlocchi = (re) => {
+    for (const blocco of raccogli(re)) {
+      const dentro = blocco.trim();
+      if (!dentro) continue;
+      try { return { trovato: true, valore: JSON.parse(dentro) }; } catch { /* non era JSON: si prova il blocco dopo */ }
+    }
+    return { trovato: false };
+  };
+  // prima solo quelli con l'etichetta json; i generici si guardano solo se quelli non danno niente
+  let daCodice = provaBlocchi(/```[ \t]*json[ \t]*\r?\n([\s\S]*?)```/gi);
+  if (!daCodice.trovato) daCodice = provaBlocchi(/```[^\n]*\r?\n([\s\S]*?)```/g);
+  if (daCodice.trovato) return daCodice.valore;
+
+  // 2) scansione carattere per carattere, contando le graffe aperte e chiuse.
+  // Le graffe dentro una stringa fra virgolette doppie non si contano: un testo
+  // come "ciao { mondo" farebbe sballare il conto e il blocco non si chiuderebbe mai.
+  // Dentro una stringa, \" non la chiude e \\ è solo una barra, quindi il carattere
+  // che viene dopo torna normale.
+  const blocchi = [];
+  let inizio = -1;
+  let graffe = 0;
+  let dentroStringa = false;
+  let scappato = false;
+  for (let i = 0; i < t.length; i++) {
+    const ch = t[i];
+    if (dentroStringa) {
+      if (scappato) scappato = false;
+      else if (ch === '\\') scappato = true;
+      else if (ch === '"') dentroStringa = false;
+      continue;
+    }
+    if (ch === '"') { dentroStringa = true; scappato = false; continue; }
+    if (ch === '{') { if (graffe === 0) inizio = i; graffe++; continue; }
+    if (ch === '}' && graffe > 0) {
+      graffe--;
+      if (graffe === 0 && inizio >= 0) { blocchi.push(t.slice(inizio, i + 1)); inizio = -1; }
+    }
+  }
+
+  // 3) si provano tutti i blocchi bilanciati trovati, dall'ultimo al primo:
+  // l'IA di solito mette il risultato buono in fondo, dopo le spiegazioni.
+  for (let i = blocchi.length - 1; i >= 0; i--) {
+    try { return JSON.parse(blocchi[i]); } catch { /* non valido: si prova quello prima */ }
+  }
+  return null;
 }
 
 function estraiCompiti(testo) {
