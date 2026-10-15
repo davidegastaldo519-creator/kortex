@@ -653,7 +653,7 @@ export async function splash(brand, o = {}) {
 
     if (t < 9.0 && uscita === 0) tela.testo(W - 27, 0, 'un tasto qualsiasi: salta', [75, 75, 92]);
 
-    out.write(tela.stringa());
+    out.write('\x1b[?2026h' + tela.stringa() + '\x1b[?2026l');
     // se il PC non ce la fa, abbasso la qualità del teschio invece di scattare
     const durataFrame = Date.now() - inizioFrame;
     if (durataFrame > 70) { if (++lenti >= 3 && qualita === 1) qualita = 2; } else lenti = 0;
@@ -754,7 +754,7 @@ async function splashCorta(brand, o) {
     });
     const n = Math.floor(firma.length * fase(t, ...Tc.firma));
     tela.testo(Math.max(0, Math.floor((W - firma.length) / 2)), ty + righe.length + 1, firma.slice(0, n), (i) => (i >= 21 ? campiona(stops, i / 6 - t * 0.5) : [170, 170, 190]));
-    out.write(tela.stringa());
+    out.write('\x1b[?2026h' + tela.stringa() + '\x1b[?2026l');
     await dorme(40);
   }
   if (stdin.isTTY) { stdin.off('data', tasto); stdin.setRawMode(false); stdin.pause(); }

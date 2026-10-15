@@ -389,6 +389,7 @@ export async function eseguiRichiesta({ richiesta, ctx }) {
     ui.out(`  ${icona[e.esito] || '·'} ${i + 1}. ${e.c.titolo} — ${e.esito}${chi}${nota}\n`);
   }
   ui.out(`  tempo: ${durata}${insieme ? '  (compiti in parallelo)' : ''}\n`);
+  if (ctx.tel?.richiesta) ctx.tel.richiesta.fine = Date.now();
 
   const data = new Date().toISOString().slice(0, 16).replace('T', ' ');
   stato.annota(

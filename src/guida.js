@@ -16,7 +16,7 @@ Si cambia pagina con TAB (avanti) e SHIFT+TAB (indietro). ESC torna sempre a LAV
 
 # LE SCHEDE DI LAVORO
 A destra, CTRL+N le fa girare (o /scheda 1..5, o un clic sul nome):
-- AGENTI: l'albero del lavoro (richiesta → compiti → ruoli → strumenti usati), la coda delle richieste, la mappa dei ruoli con i collegamenti che si accendono, la linea del tempo con una corsia per ogni IA.
+- AGENTI: il quadro della squadra, dall'alto in basso. La RICHIESTA con il tempo e quanti compiti lavorano insieme. I COMPITI, uno per riga, con le tre fasi P (piano), L (lavoro dell'esecutore o dell'operatore) e V (verifica del revisore): ● fatto, ✖ errore, ⟳ riserva, un numero se è stata corretta più volte, ←1,2 se aspetta altri compiti; poi chi l'ha fatto e quanto ci ha messo. La SQUADRA, un ruolo per riga: quale IA lo copre, cosa sta facendo, su quale compito, l'ultimo strumento usato, e quando è fermo le riserve pronte. L'ATTIVITÀ IN DIRETTA: ogni file letto o scritto e ogni comando lanciato, con ora, IA, ruolo e compito. La CODA delle richieste in attesa e, se c'è posto, la LINEA DEL TEMPO.
 - OUTPUT: tutto quello che scrivono le IA, scorrevole. Quando più compiti lavorano insieme, ogni riga porta il numero del suo compito (│1, │2…).
 - REGISTRO: ogni evento con ora, IA col suo colore, ruolo e simbolo. ▶ avvio, ▸ strumento, ✔ finito, ✖ errore, ⟳ riserva, ⇉ compiti in parallelo. CTRL+F cambia il filtro.
 - DIFF: le modifiche ai file del progetto, colorate (verde aggiunte, rosso righe tolte, giallo file nuovi), aggiornate mentre le IA lavorano. Serve git nel progetto.
@@ -103,6 +103,9 @@ Valgono per qualunque finestra, non solo KORTEX: utile per tenere affiancati KOR
 
 # I CERVELLI DELLE IA
 Ogni IA ha un cervello col suo colore: Claude arancio, Codex verde, Gemini blu, Ollama grigio. Quando pensa si accende e ci corre sopra un'onda di luce; da ferma respira piano; rosso lampeggiante vuol dire che ha finito il limite dell'abbonamento; spento vuol dire non collegata.
+
+# NIENTE SFARFALLIO
+KORTEX riscrive sullo schermo solo le righe che cambiano, tutte in un colpo, e chiede al terminale di mostrare il fotogramma solo quando è completo. Se un terminale molto vecchio mostra qualcosa di strano, /grafica leggera riduce gli aggiornamenti al minimo.
 
 # LA SCHERMATA INIZIALE
 Il risveglio: il battito del cuore, le onde cerebrali, il cervello a circuiti che si accende, il teschio in 3D vero (calcolato al momento, con luce e ombre) che si forma e apre gli occhi, KORTEX che si assembla dai frammenti, la firma forgiata a caldo, l'accensione dei sistemi con lo stato delle IA, del database e della memoria, e il teschio che rimpicciolisce fino all'intestazione mentre le pagine si disegnano. Cambia col tema: stelle (NEON), fiamme (FUOCO), neve (GHIACCIO), pioggia di caratteri (MATRIX). Un tasto qualsiasi la salta; kortex --no-anim la toglie; sul telefono c'è una versione corta.

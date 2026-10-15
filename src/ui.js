@@ -17,6 +17,7 @@ import { Telemetria } from './telemetria.js';
 import { PARAMETRI, MAPPATURE, cambia, applicaMappatura, applicaGrafica, salvaConfig } from './parametri.js';
 import { elencoDestinazioni, Sessioni } from './terminale.js';
 import { html, C, PAGINE, Intestazione, SPIN, GRAFICA } from './grafica.js';
+import { SchermoStabile } from './schermo.js';
 import { StdinFiltrato, accendiMouse, spegniMouse, eventi as eventiMouse, gestisciClick, gestisciRotella } from './mouse.js';
 import { elencoProgetti, creaProgetto, importaProgetto, registraProgetto, toccaProgetto, progettoDi, elencoChat, creaChat, salvaChat, caricaChat, riassuntoChat, istantanea, elencoIstantanee, ripristina } from './progetti.js';
 import { RUOLI, FILTRI, SCHEDE, BarraAllegati, PaginaSelettore, PaginaLavoro, PaginaControllo, PaginaStudio, PaginaGuida, PaginaProgetti, PaginaDatabase } from './pagine.js';
@@ -872,7 +873,7 @@ function App({ config, disponibili, cwd: cwdIniziale, versione, suoni }) {
     corpo = html`<${PaginaStudio} h=${hCorpo} w=${c} lavagna=${lavagna} appunti=${stato.current.appunti()} scorri=${scorri.studio} tick=${tick} massimi=${m} memoria=${memoria} azioni=${azioni} />`;
   }
   else if (pagina === 'guida') corpo = html`<${PaginaGuida} h=${hCorpo} w=${c} scorri=${scorri.guida} massimi=${m} azioni=${azioni} />`;
-  else corpo = html`<${PaginaLavoro} h=${hCorpo} w=${c} righe=${righe} scorri=${scheda === 'registro' ? scorri.registro : scheda === 'diff' ? scorri.diff : scorri.lavoro} log=${log} ruoli=${ruoli} disponibili=${disponibili} compiti=${compiti} file=${file} tick=${tick} massimi=${m} tel=${tel.current} scheda=${scheda} fuoco=${fuoco} filtro=${filtro} destinazioni=${destinazioni} dest=${dest} sessione=${sessione} scorriShell=${scorri.shell} inCorso=${shellInCorso} azioni=${azioni} coda=${coda} domanda=${domanda} diff=${scheda === 'diff' ? datiDiff() : null} />`;
+  else corpo = html`<${PaginaLavoro} config=${config} h=${hCorpo} w=${c} righe=${righe} scorri=${scheda === 'registro' ? scorri.registro : scheda === 'diff' ? scorri.diff : scorri.lavoro} log=${log} ruoli=${ruoli} disponibili=${disponibili} compiti=${compiti} file=${file} tick=${tick} massimi=${m} tel=${tel.current} scheda=${scheda} fuoco=${fuoco} filtro=${filtro} destinazioni=${destinazioni} dest=${dest} sessione=${sessione} scorriShell=${scorri.shell} inCorso=${shellInCorso} azioni=${azioni} coda=${coda} domanda=${domanda} diff=${scheda === 'diff' ? datiDiff() : null} />`;
 
   let progresso = 0;
   if (occupato) {
@@ -949,11 +950,13 @@ export async function avviaUI(props) {
   process.stdout.write('\x1b]0;KORTEX\x07\x1b[?1049h\x1b[2J\x1b[H');
   const stdin = new StdinFiltrato(process.stdin);
   if (props.config.mouse !== false) accendiMouse();
-  const app = render(html`<${App} ...${props} />`, { exitOnCtrlC: false, stdin });
+  const schermo = new SchermoStabile(process.stdout);
+  const app = render(html`<${App} ...${props} />`, { exitOnCtrlC: false, stdin, stdout: schermo, patchConsole: false });
   await app.waitUntilExit();
   chiudiTutto();
   spegniMouse();
   stdin.chiudi();
+  schermo.chiudi();
   process.stdout.write('\x1b[?25h\x1b[?1049l');
   // se qualcosa resta appeso (un'IA che non vuole morire), tra poco si esce lo stesso
   setTimeout(() => process.exit(0), 1500).unref();

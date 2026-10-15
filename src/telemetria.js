@@ -26,11 +26,12 @@ export class Telemetria {
     this.chiamate = []; // ogni chiamata a un'IA: serve per albero, mappa e linea del tempo
     this.richiesta = null;
     this.nRichiesta = 0;
+    this.attivita = []; // gli ultimi strumenti usati: { t, ia, ruolo, compito, testo }
   }
 
   nuovaRichiesta(testo) {
     this.nRichiesta++;
-    this.richiesta = { n: this.nRichiesta, testo, inizio: Date.now(), compiti: [] };
+    this.richiesta = { n: this.nRichiesta, testo, inizio: Date.now(), fine: null, compiti: [] };
   }
 
   compiti(lista) {
@@ -42,6 +43,7 @@ export class Telemetria {
     const aperte = this.chiamate.filter((x) => x.ia === id && !x.fine);
     const c = aperte.find((x) => x.compito === compito) || aperte[aperte.length - 1];
     if (c) c.strumenti.push(nome);
+    this.attivita = [...this.attivita, { t: Date.now(), ia: id, ruolo: c?.ruolo || '', compito: c ? c.compito : compito, testo: nome }].slice(-80);
   }
 
   // Una volta al secondo.

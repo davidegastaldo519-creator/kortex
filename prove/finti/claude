@@ -25,6 +25,8 @@ if 'Sei il DIRETTORE' in prompt:
         ]})
     testo(risultato)
 elif 'Sei il PIANIFICATORE' in prompt:
+    strumento('Read', {'file_path': 'README.md'}); time.sleep(0.7)
+    strumento('Grep', {'pattern': 'saluto'}); time.sleep(0.7)
     risultato = '1. Leggi il compito\n2. Fallo\n3. Riepiloga'
     testo(risultato)
 elif "Sei l'ESECUTORE" in prompt:

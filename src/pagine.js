@@ -2,7 +2,7 @@ import { Box, Text } from 'ink';
 import path from 'node:path';
 import { html, C, COLORE_IA, SPIN, Pannello, Barra, Cervello, statoCervello, avvolgi, accorcia, Neuroni } from './grafica.js';
 import { Cliccabile } from './mouse.js';
-import { Albero, Mappa, LineaDelTempo } from './agenti.js';
+import { PannelloAgenti } from './agenti.js';
 import { EmblemaDatabase, EmblemaProgetti } from './emblemi.js';
 import { campiona, hex, rgbHex } from './colori.js';
 import { graficoAlto } from './telemetria.js';
@@ -106,24 +106,8 @@ function Terminale({ h, w, destinazioni, dest, sessione, scorri, fuoco, inCorso,
   <//><//>`;
 }
 
-function SchedaAgenti({ h, w, tel, ruoli, disponibili, tick, coda }) {
-  const nIA = Object.keys(disponibili).length;
-  const hLinea = nIA + 4;
-  const hMappa = 4;
-  const hCoda = coda?.length ? Math.min(4, coda.length + 1) : 0;
-  const hAlbero = Math.max(3, h - hLinea - hMappa - 3 - hCoda);
-  return html`<${Box} flexDirection="column" height=${h} overflow="hidden">
-    <${Text} color=${C.ciano} bold>ALBERO DEL LAVORO<//>
-    <${Albero} tel=${tel} disponibili=${disponibili} tick=${tick} larghezza=${w} altezza=${hAlbero} />
-    ${hCoda ? html`<${Box} flexDirection="column" height=${hCoda} overflow="hidden">
-      <${Text} color=${C.giallo} bold>IN CODA (${coda.length})<//>
-      ${coda.slice(0, hCoda - 1).map((c, i) => html`<${Text} key=${i} color=${C.grigio} wrap="truncate-end">  ${i + 1}. ${c}<//>`)}
-    <//>` : null}
-    <${Text} color=${C.ciano} bold>MAPPA DEI RUOLI<//>
-    <${Mappa} tel=${tel} ruoli=${ruoli} disponibili=${disponibili} tick=${tick} larghezza=${w} />
-    <${Text} color=${C.ciano} bold>LINEA DEL TEMPO<//>
-    <${LineaDelTempo} tel=${tel} disponibili=${disponibili} larghezza=${w} />
-  <//>`;
+function SchedaAgenti(p) {
+  return html`<${PannelloAgenti} ...${p} />`;
 }
 
 function SchedaRegistro({ h, w, log, filtro, scorri, massimi, azioni, tick }) {
@@ -201,7 +185,7 @@ export function PaginaLavoro(p) {
       ${file.map((f, i) => html`<${Text} key=${i} wrap="truncate-end" color=${f.startsWith('??') ? C.verde : f.trimStart().startsWith('M') ? C.giallo : C.grigio}>${f}<//>`)}
     <//>`;
   } else {
-    contenuto = html`<${SchedaAgenti} h=${hDentro} w=${dentro} tel=${tel} ruoli=${ruoli} disponibili=${disponibili} tick=${tick} coda=${p.coda} />`;
+    contenuto = html`<${SchedaAgenti} h=${hDentro} w=${dentro} tel=${tel} ruoli=${ruoli} disponibili=${disponibili} tick=${tick} coda=${p.coda} config=${p.config} />`;
   }
 
   return html`<${Box} height=${h}>
