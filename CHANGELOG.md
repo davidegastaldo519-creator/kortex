@@ -1,5 +1,9 @@
 # Le novità di KORTEX
 
+## 2.2.1
+- **Claude non viene più fermato per sbaglio**: mentre scrive un file lungo manda segni di vita, così il guardiano del silenzio non lo crede più bloccato e non passa alla riserva senza motivo.
+- **Simboli del REGISTRO**: l'avvio di una CLI (▸ ciano) e l'uso di uno strumento (◆ viola) adesso si distinguono a prima vista.
+
 ## 2.2.0
 - **Tavolozza dei comandi (Ctrl+P)**: scrivi due lettere e trovi pagine, schede, temi, profili, progetti e voci del database.
 - **OUTPUT a bolle**: ogni IA parla nella sua bolla col suo colore, il tempo e il compito; dentro, il testo è formattato (titoli, grassetto, elenchi, codice colorato).

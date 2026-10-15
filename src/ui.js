@@ -48,7 +48,9 @@ const ora = () => new Date().toTimeString().slice(0, 8);
 const tagliaA = (t, n) => { const s = String(t); if (stringWidth(s) <= n) return s; let o = ''; for (const ch of s) { if (stringWidth(o + ch) > n - 1) break; o += ch; } return o + '…'; };
 const riempiA = (t, n) => { const s = String(t); const l = stringWidth(s); return l >= n ? s : s + ' '.repeat(n - l); };
 const ruoliIniziali = () => Object.fromEntries(RUOLI.map(([id]) => [id, { stato: 'attesa', ia: null }]));
-const tipoDa = (t) => (/^\s*▸/.test(t) ? 'avvio' : /^\s*▸/.test(t) ? 'strumento' : /^\s*✗/.test(t) ? 'errore' : /^\s*△/.test(t) ? 'avviso' : /^\s*✓/.test(t) ? 'fine' : 'info');
+// Riconosco il tipo di evento dal simbolo e dal rientro: la riga di avvio della CLI comincia
+// subito con ▸, quella dell'uso di uno strumento è rientrata di due spazi.
+const tipoDa = (t) => (/^▸/.test(t) ? 'avvio' : /^\s+▸/.test(t) ? 'strumento' : /^\s*✗/.test(t) ? 'errore' : /^\s*△/.test(t) ? 'avviso' : /^\s*✓/.test(t) ? 'fine' : 'info');
 
 function percorsiIncollati(testo) {
   const trovati = [];

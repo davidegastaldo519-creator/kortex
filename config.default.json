@@ -71,6 +71,7 @@
         "--output-format",
         "stream-json",
         "--verbose",
+        "--include-partial-messages",
         "{resume}",
         "{adddir}",
         "{extra}"

@@ -48,6 +48,14 @@ export function eseguiIA({ cfg, prompt, cwd, sessione, extra, modello, adddir, t
     if (chiusura) return risolvi({ ok: false, errore: 'KORTEX si sta chiudendo' });
     const resume = sessione && cfg.resume ? cfg.resume.map((x) => x.replace('{session}', sessione)) : [];
     const args = costruisciArgs(cfg.args, { prompt, extra, resume, modello, adddir });
+    // Claude, mentre scrive un file lungo, può stare minuti senza dire niente e il guardiano del
+    // silenzio lo crede bloccato. Con questa opzione manda pezzetti di messaggio appena li produce,
+    // cioè segni di vita continui. La aggiungo anche qui perché chi ha gia la sua configurazione
+    // salvata non riceverebbe la novità dal modello; e solo se non c'è già, per non ripeterla.
+    if (cfg.parser === 'claude-stream' && args.includes('--output-format') && args.includes('stream-json')
+      && !args.includes('--include-partial-messages')) {
+      args.splice(args.indexOf('stream-json') + 1, 0, '--include-partial-messages');
+    }
     const mostrati = args.map((a) => (a === prompt ? '«prompt»' : a)).join(' ');
     onLog?.(`▸ ${cfg.nome}: ${cfg.bin} ${mostrati}`.slice(0, 160));
 
@@ -116,9 +124,16 @@ export function eseguiIA({ cfg, prompt, cwd, sessione, extra, modello, adddir, t
         const riga = buffer.slice(0, i).trim();
         buffer = buffer.slice(i + 1);
         if (!riga) continue;
+        // Ogni riga che arriva vale come segno di vita e rimanda indietro il guardiano del silenzio,
+        // comprese le righe dei pezzetti di messaggio.
+        ultimoSegno = Date.now();
         let ev;
         try { ev = JSON.parse(riga); } catch { continue; }
         if (ev.session_id) sessioneNuova = ev.session_id;
+        // I pezzetti di messaggio servono solo a far capire che Claude sta lavorando: il testo
+        // completo arriva poi con l'evento "assistant", quindi qui non mostro niente (altrimenti
+        // nelle bolle dell'OUTPUT lo stesso testo comparirebbe due volte).
+        if (ev.type === 'stream_event') continue;
         if (ev.type === 'assistant' && Array.isArray(ev.message?.content)) {
           for (const c of ev.message.content) {
             if (c.type === 'text' && c.text) {

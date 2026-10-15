@@ -105,10 +105,10 @@ export function PannelloDomanda({ domanda, azioni }) {
 export const SCHEDE = [['agenti', 'AGENTI'], ['output', 'OUTPUT'], ['registro', 'REGISTRO'], ['diff', 'DIFF'], ['file', 'FILE']];
 export const FILTRI = [['tutti', 'TUTTI'], ['claude', 'Claude'], ['codex', 'Codex'], ['gemini', 'Gemini'], ['ollama', 'Ollama'], ['errori', 'ERRORI']];
 const ICONA_EVENTO = {
-  avvio: ['▸', C.ciano], strumento: ['▸', C.viola], fine: ['✓', C.verde], errore: ['✗', C.rosso],
+  avvio: ['▸', C.ciano], strumento: ['◆', C.viola], fine: ['✓', C.verde], errore: ['✗', C.rosso],
   riserva: ['»', C.giallo], avviso: ['△', C.giallo], info: ['·', C.grigio],
 };
-const pulisci = (t) => t.replace(/^\s*[▸▸✗✓△»]\s*/, '').replace(/^(Claude|Codex|Gemini|Ollama|Antigravity)\s*(:|→)\s*/, '');
+const pulisci = (t) => t.replace(/^\s*[▸◆✗✓△»]\s*/, '').replace(/^(Claude|Codex|Gemini|Ollama|Antigravity)\s*(:|→)\s*/, '');
 
 function Terminale({ h, w, destinazioni, dest, sessione, scorri, fuoco, inCorso, massimi, azioni }) {
   const righe = [];
