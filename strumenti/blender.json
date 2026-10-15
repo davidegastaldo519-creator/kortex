@@ -5,8 +5,13 @@
   "tasto": "b",
   "descrizione": "modelli, animazioni e render in 3D, comandati da KORTEX",
   "permessi": "libero",
-  "stato": { "tipo": "porta", "host": "localhost", "porta": 9876 },
+  "stato": {
+    "tipo": "porta",
+    "host": "localhost",
+    "porta": 9876
+  },
   "avviso": "apri Blender, il server MCP parte da solo",
+  "avvia": "blender",
   "mcp": {
     "command": "uv",
     "args": [

@@ -14,8 +14,8 @@ L'utente scrive cosa vuole ottenere. Dietro le quinte una squadra di ruoli si di
 **direttore** (divide i compiti), **pianificatore** (scrive il piano, non modifica niente),
 **esecutore** (lavora sui file), **operatore** (lancia comandi e test), **revisore** (controlla e fa
 correggere), più **catalogatore** e **memorista** che lavorano in sottofondo.
-L'interfaccia è uno "studio" a sette pagine (LAVORO, PROGETTI, DATABASE, CONTROLLO, STUDIO,
-STATISTICHE, GUIDA) con un terminale multi-macchina, un database condiviso in `~/kortex-database`
+L'interfaccia è uno "studio" a otto pagine (LAVORO, PROGETTI, DATABASE, CONTROLLO, STUDIO,
+STATISTICHE, GUIDA, STRUMENTI) con un terminale multi-macchina, un database condiviso in `~/kortex-database`
 e una memoria di progetto nella cartella `.kortex/` del progetto.
 
 Come si lancia:

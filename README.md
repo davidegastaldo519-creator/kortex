@@ -23,6 +23,8 @@
 
 ![statistiche](assets/statistiche.png)
 
+![strumenti: Blender comandato dalle IA](assets/strumenti.png)
+
 **Novità della 2.2**: tavolozza dei comandi **Ctrl+P**, OUTPUT a **bolle** con testo formattato, **revisione** dei file uno per uno (accetta / riporta com'era), **barra di stato** a blocchi colorati, **carburante** degli abbonamenti nelle ultime 5 ore, **profili** di lavoro (Programmatore, Minecraft, Studio, Creativo), temi **Tokyo Night, Dracula, Synthwave, Vaporwave**, icone **Nerd Font** installate da sole, pagina **STATISTICHE**, giro guidato e finestra delle novità. Tutti i cambiamenti sono in [CHANGELOG.md](CHANGELOG.md).
 
 Un solo comando da terminale che fa lavorare insieme **Claude Code, Codex, Gemini CLI e Ollama** su qualunque progetto. Usa le CLI già installate, quindi i tuoi **abbonamenti**: niente chiavi API, niente costi a consumo. Gira uguale su PC Linux e su Termux (telefono e tablet).
@@ -82,7 +84,7 @@ All'avvio, circa 12 secondi: il buio, il **battito del cuore** che attraversa lo
 
 Si salta con un tasto qualsiasi, o del tutto con `kortex --no-anim`. Sul telefono e nelle finestre piccole parte una versione corta. Su Lubuntu l'icona nel menu e Ctrl+Alt+K aprono il terminale **grande (massimizzato)** ma come finestra normale (serve `wmctrl`: `sudo apt install -y wmctrl`); su Ubuntu/GNOME con Ptyxis la finestra si apre già massimizzata.
 
-## Lo studio: sette pagine
+## Lo studio: otto pagine
 
 Si passa da una pagina all'altra con **TAB**. ESC riporta sempre a LAVORO.
 
@@ -93,6 +95,7 @@ Si passa da una pagina all'altra con **TAB**. ESC riporta sempre a LAVORO.
 - **STUDIO** — la lavagna col ragionamento dell'ultima richiesta e i tuoi appunti (`/nota`).
 - **STATISTICHE** — richieste, compiti riusciti, file toccati, tempo delle IA, tempo risparmiato, carburante di ogni abbonamento e gli ultimi 14 giorni.
 - **GUIDA** — il manuale completo.
+- **STRUMENTI** — i programmi esterni che le IA sanno comandare, come **Blender**: una tessera per strumento con stato, usi di oggi e ultima azione; a destra la scheda con i pulsanti USA, AVVIA e CONTROLLA. Ci arrivi anche con Alt+lettera (Alt+B per Blender) da qualunque pagina, e `@blender` nella richiesta dà lo strumento alla squadra.
 
 In qualunque pagina **Ctrl+P** apre la tavolozza: due lettere e trovi pagine, temi, profili, progetti e voci del database. L'ultima riga è la **barra di stato**: modalità e profilo, ramo git, avanzamento, carburante delle IA (stimato all'inizio, poi imparato al primo limite vero), coda e ora.
 

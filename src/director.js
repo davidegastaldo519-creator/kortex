@@ -4,7 +4,7 @@ import { diffProgetto } from './state.js';
 import { DIR_DB, bloccoConoscenze, aggiungiSoluzione } from './database.js';
 import { bloccoPreferenze, ricorda } from './memoria.js';
 import { bloccoProfilo } from './profili.js';
-import { trovaMenzioni, togliMenzioni, contestoStrumenti, argomentiMcp, controllaStato, avvisoSpento, cartellaStrumenti } from './strumenti.js';
+import { registraUso, trovaMenzioni, togliMenzioni, contestoStrumenti, argomentiMcp, controllaStato, avvisoSpento, cartellaStrumenti } from './strumenti.js';
 
 // ---------- scelta dell'IA per un ruolo, con riserva automatica ----------
 
@@ -135,6 +135,9 @@ async function preparaStrumenti(richiesta, ctx) {
   ctx.argsMcp = argomentiMcp(strumenti);
   if (!strumenti.length) return richiesta;
   ctx.ui.out(`◆ strumenti: ${strumenti.map((s) => s.icona + ' ' + s.nome).join(' · ')}\n`);
+  // nel registro dello strumento: chi l'ha usato e per cosa (lo mostra la pagina STRUMENTI)
+  const pulita = togliMenzioni(richiesta, strumenti);
+  for (const s of strumenti) registraUso(s.id, { chi: ctx.modo || 'squadra', cosa: pulita });
   for (const s of strumenti) {
     if ((await controllaStato(s)) === false) ctx.ui.out(avvisoSpento(s) + '\n');
   }

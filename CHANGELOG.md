@@ -1,5 +1,13 @@
 # Le novità di KORTEX
 
+## 2.4.0
+- **Pagina 8 STRUMENTI**: a sinistra una tessera per ogni strumento (stato colorato, usi di oggi, ultima azione, tasto Alt), a destra la scheda completa con i pulsanti USA, AVVIA e CONTROLLA, cosa sanno le IA e le ultime azioni.
+- **Alt+lettera da qualunque pagina** apre lo strumento con quel tasto (Alt+B per Blender). Scrivi una frase nella pagina STRUMENTI e INVIO: parte subito una richiesta con quello strumento.
+- **Avvia il programma** con Ctrl+A o col pulsante: Blender si apre da solo, staccato da KORTEX.
+- **Ricerca automatica dei problemi**: se manca il programma del collegamento, la sua cartella o il programma da avviare, la tessera diventa gialla e la scheda dice cosa sistemare.
+- **Registro degli usi**: ogni richiesta con @strumento resta segnata (ora e cosa), in ~/.config/kortex/strumenti-uso.json.
+- Nella barra in basso un blocco dice quanti strumenti sono accesi. Le schede dell'utente ricevono da sole i campi nuovi delle schede predefinite, senza toccare il loro file.
+
 ## 2.3.1
 - **Claude per primo con gli strumenti**: nelle richieste con uno strumento (per esempio @blender) i ruoli esecutore, operatore e revisore vanno a Claude, perché è l'unica CLI che riceve il server MCP e può comandare davvero il programma; le altre IA restano di riserva e tornano in prima fila se Claude non c'è o ha finito il carburante. Senza strumenti la scelta dell'IA resta identica a prima.
 - **Il revisore controlla dentro lo strumento**: quando c'è uno strumento attivo, al revisore viene chiesto di verificare il risultato usando lo strumento stesso (per Blender: leggere la scena con gli strumenti mcp__blender), non solo i file sul disco.

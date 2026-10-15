@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import net from 'node:net';
+import { spawn, execFileSync } from 'node:child_process';
 import { DIR_CONFIG, RADICE } from './config.js';
 
 // Gli STRUMENTI sono i programmi esterni che le IA possono comandare: Blender, un server, un gioco.
@@ -68,6 +69,7 @@ function leggiScheda(percorso) {
     permessi: s.permessi || 'conferma',
     stato: s.stato || null,
     avviso: s.avviso || '',
+    avvia: s.avvia || '',
     mcp: s.mcp || null,
     contesto: s.contesto || '',
     progetti: Array.isArray(s.progetti) ? s.progetti : [],
@@ -75,10 +77,30 @@ function leggiScheda(percorso) {
   };
 }
 
+// Le schede predefinite di KORTEX, lette una volta sola: servono a completare quelle dell'utente.
+let cachePredefinite = null;
+function predefinite() {
+  if (cachePredefinite) return cachePredefinite;
+  cachePredefinite = {};
+  try {
+    for (const nome of fs.readdirSync(DIR_SCHEDE)) {
+      if (!nome.toLowerCase().endsWith('.json')) continue;
+      try {
+        const grezza = JSON.parse(fs.readFileSync(path.join(DIR_SCHEDE, nome), 'utf8'));
+        const id = String(grezza.id || path.basename(nome, '.json')).toLowerCase();
+        cachePredefinite[id] = { grezza };
+      } catch { /* una scheda rotta non deve fermare niente */ }
+    }
+  } catch { /* cartella assente: nessuna predefinita */ }
+  return cachePredefinite;
+}
+const leggiCampo = (k, valore, attuale) => (valore === undefined || valore === null ? attuale : valore);
+
 // Tutte le schede leggibili della cartella dell'utente. Quelle rotte vengono saltate
 // con una riga nel registro: una scheda sbagliata non deve fermare KORTEX.
 export function caricaStrumenti(cartella = DIR_STRUMENTI) {
   const fuori = [];
+  const base = predefinite();
   let nomi = [];
   try {
     nomi = fs.readdirSync(cartella);
@@ -89,7 +111,15 @@ export function caricaStrumenti(cartella = DIR_STRUMENTI) {
     if (!nome.toLowerCase().endsWith('.json')) continue;
     const percorso = path.join(cartella, nome);
     try {
-      fuori.push(leggiScheda(percorso));
+      const sua = leggiScheda(percorso);
+      // i campi che la scheda dell'utente non ha (arrivati con un aggiornamento) si prendono dalla
+      // scheda predefinita con lo stesso id, senza toccare il suo file né i valori che ha già
+      const pred = base[sua.id];
+      if (pred) {
+        const grezza = JSON.parse(fs.readFileSync(percorso, 'utf8'));
+        for (const k of Object.keys(pred.grezza)) if (grezza[k] === undefined && k in sua) sua[k] = leggiCampo(k, pred.grezza[k], sua[k]);
+      }
+      fuori.push(sua);
     } catch (e) {
       console.error(`Strumenti: salto la scheda ${nome}, non riesco a leggerla (${e.message}).`);
     }
@@ -201,4 +231,69 @@ export function avvisoSpento(strumento) {
   const nome = strumento?.nome || strumento?.id || 'lo strumento';
   if (strumento?.avviso) return `△ ${nome} sembra spento: ${strumento.avviso}`;
   return `△ ${nome} sembra spento: accendilo e riprova`;
+}
+
+// ---------- il registro delle azioni: chi ha usato lo strumento, quando e per cosa ----------
+
+const FILE_USO = path.join(DIR_CONFIG, 'strumenti-uso.json');
+let usoInMemoria = null;
+function leggiUso(file) {
+  if (!file && usoInMemoria) return usoInMemoria;
+  let d = {};
+  try { d = JSON.parse(fs.readFileSync(file || FILE_USO, 'utf8')) || {}; } catch { d = {}; }
+  if (!file) usoInMemoria = d;
+  return d;
+}
+
+// Annota un'azione sullo strumento. Tiene le ultime 20 per ognuno. Non lancia mai eccezioni.
+export function registraUso(id, { chi = 'tu', cosa = '' } = {}, file) {
+  try {
+    const d = leggiUso(file);
+    const l = (d[id] ||= []);
+    l.unshift({ t: Date.now(), chi, cosa: String(cosa).replace(/\s+/g, ' ').trim().slice(0, 120) });
+    d[id] = l.slice(0, 20);
+    fs.mkdirSync(path.dirname(file || FILE_USO), { recursive: true });
+    fs.writeFileSync(file || FILE_USO, JSON.stringify(d));
+  } catch { /* il registro non deve mai fermare KORTEX */ }
+}
+
+// Le ultime azioni di uno strumento (la più recente per prima) e quante sono di oggi.
+export function usiStrumento(id, file) {
+  const l = leggiUso(file)[id] || [];
+  const oggi = new Date().toDateString();
+  return { ultime: l, oggi: l.filter((x) => new Date(x.t).toDateString() === oggi).length };
+}
+
+// ---------- i controlli della scheda: cosa manca per far funzionare lo strumento ----------
+
+function esiste(cmd) {
+  if (!cmd) return false;
+  if (cmd.includes('/')) return fs.existsSync(espandiPercorso(cmd));
+  try { execFileSync('sh', ['-c', `command -v "$1"`, 'sh', cmd], { stdio: 'ignore', timeout: 2000 }); return true; } catch { return false; }
+}
+
+// L'elenco dei problemi che impediscono allo strumento di funzionare: vuoto = è tutto a posto.
+// Sono i controlli della ricerca automatica: programma del server mcp, cartella del server, programma da avviare.
+export function problemiScheda(s) {
+  const p = [];
+  if (s?.mcp?.command && !esiste(s.mcp.command)) p.push(`manca il programma "${s.mcp.command}" per il collegamento`);
+  const args = s?.mcp?.args || [];
+  const i = args.indexOf('--directory');
+  if (i >= 0 && args[i + 1] && !fs.existsSync(espandiPercorso(args[i + 1]))) p.push(`manca la cartella del collegamento: ${args[i + 1]}`);
+  if (s?.avvia && !esiste(String(s.avvia).split(/\s+/)[0])) p.push(`manca il programma da avviare: ${String(s.avvia).split(/\s+/)[0]}`);
+  return p;
+}
+
+// Apre il programma dello strumento (per esempio Blender) staccato da KORTEX: resta aperto anche
+// se KORTEX si chiude. Restituisce un testo da mostrare.
+export function avviaApp(s) {
+  if (!s?.avvia) return { ok: false, testo: `${s?.nome || 'lo strumento'} non ha un programma da avviare (campo "avvia" nella scheda)` };
+  try {
+    const p = spawn('sh', ['-c', s.avvia], { detached: true, stdio: 'ignore' });
+    p.on('error', () => {});
+    p.unref();
+    return { ok: true, testo: `avvio ${s.nome}…` };
+  } catch (e) {
+    return { ok: false, testo: `non riesco ad avviare ${s.nome}: ${e.message}` };
+  }
 }

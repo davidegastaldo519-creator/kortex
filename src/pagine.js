@@ -619,7 +619,7 @@ import { RADICE } from './config.js';
 export const TUTORIAL = [
   ['Benvenuto in KORTEX', ['KORTEX fa lavorare insieme più intelligenze artificiali sullo stesso progetto,', 'usando i tuoi abbonamenti: niente chiavi API, niente costi a consumo.', '', 'In 6 passi ti mostro dove sono le cose. Ci vuole un minuto.']],
   ['Scrivi cosa vuoi fare', ['In basso a destra c\'è la riga ›. Scrivi la richiesta e premi INVIO:', 'il DIRETTORE divide il lavoro, gli ESECUTORI lo fanno (anche in parallelo),', 'l\'OPERATORE lancia i comandi, il REVISORE controlla e fa correggere.', '', 'Mentre lavorano puoi già scrivere la richiesta dopo: si mette in coda.']],
-  ['Le pagine', ['TAB (o un clic in alto) cambia pagina: LAVORO, PROGETTI, DATABASE,', 'CONTROLLO, STUDIO, STATISTICHE, GUIDA. ESC torna sempre a LAVORO.', '', 'A sinistra in LAVORO c\'è un terminale vero: Ctrl+T ci sposta il cursore,', 'Ctrl+D cambia macchina (questo PC, i server SSH, Python, Node).']],
+  ['Le pagine', ['TAB (o un clic in alto) cambia pagina: LAVORO, PROGETTI, DATABASE,', 'CONTROLLO, STUDIO, STATISTICHE, GUIDA, STRUMENTI. ESC torna a LAVORO.', '', 'A sinistra in LAVORO c\'è un terminale vero: Ctrl+T ci sposta il cursore,', 'Ctrl+D cambia macchina (questo PC, i server SSH, Python, Node).']],
   ['Guardare il lavoro', ['A destra le schede (Ctrl+N): AGENTI mostra compiti, squadra e attività', 'in diretta; OUTPUT ha una bolla per ogni IA; DIFF ti fa rivedere i file', 'cambiati uno per uno: INVIO accetta, Ctrl+R riporta il file com\'era.']],
   ['Ctrl+P trova tutto', ['Ctrl+P apre la tavolozza dei comandi: scrivi due lettere e trovi pagine,', 'temi, profili (Programmatore, Minecraft, Studio, Creativo), progetti e', 'voci del database. Non serve ricordare i comandi.']],
   ['La barra in fondo', ['L\'ultima riga mostra modalità, ramo git, avanzamento e il CARBURANTE', 'di ogni abbonamento nelle ultime 5 ore: se scende, le riserve sono pronte.', '', 'La pagina GUIDA spiega tutto. Buon lavoro!   — ideato e forgiato da GASTY']],
@@ -658,5 +658,101 @@ export function Finestra({ finestra, larghezza, altezza, versione, azioni }) {
     <${Cliccabile} azione=${azioni.avanti}><${Text} color="#000000" backgroundColor=${C.rosa} bold>${pieno(` ${I.stella} ${titolo}`, w - 2)}<//><//>
     ${righe.map((r, i) => html`<${Text} key=${i} color=${C.gesso}>${pieno(' ' + r, w - 2)}<//>`)}
     <${Cliccabile} azione=${azioni.chiudi}><${Text} color=${C.grigio}>${pieno(' ' + piede, w - 2)}<//><//>
+  <//>`;
+}
+
+// ---------- STRUMENTI: i programmi esterni che le IA sanno comandare ----------
+// A sinistra una griglia di tessere (una per strumento, col colore del suo stato); a destra la scheda
+// completa dello strumento scelto, con i pulsanti e le ultime azioni.
+
+const WT = 30; // larghezza di una tessera
+const HT = 6; // altezza di una tessera
+export const larghezzaGriglia = (w) => Math.max(WT + 4, Math.min(Math.floor(w * 0.56), w - 44));
+export const colonneStrumenti = (w) => Math.max(1, Math.floor((larghezzaGriglia(w) - 4) / (WT + 1)));
+
+const oraBreve = (t) => new Date(t).toTimeString().slice(0, 5);
+
+// lo stato di uno strumento in parole e colore
+export function statoStrumento(s) {
+  if (s.problemi?.length) return { testo: `${I.avviso} da configurare`, col: C.giallo };
+  if (s.acceso === true) return { testo: '■ acceso', col: C.verde };
+  if (s.acceso === false) return { testo: '□ spento', col: C.grigio };
+  return { testo: '◇ sempre pronto', col: C.ciano };
+}
+const COLORE_PERMESSI = { libero: C.verde, conferma: C.giallo, lettura: C.ciano };
+
+function TesseraStrumento({ s, scelto, azione }) {
+  const st = statoStrumento(s);
+  const dentro = WT - 4;
+  const testa = `${s.icona} ${s.nome.toUpperCase()}`;
+  const tasto = s.tasto ? `alt+${s.tasto}` : '';
+  const ultima = s.usi?.ultime?.[0];
+  const spenta = s.altroProgetto;
+  return html`<${Cliccabile} azione=${azione} width=${WT} height=${HT} marginRight=${1} flexShrink=${0}>
+    <${Box} flexDirection="column" width=${WT} height=${HT} borderStyle=${scelto ? 'double' : 'round'} borderColor=${scelto ? C.rosa : spenta ? C.scuro : st.col} paddingX=${1}>
+      <${Text} wrap="truncate-end"><${Text} color=${spenta ? C.grigio : scelto ? C.rosa : C.gesso} bold>${testa.slice(0, dentro - tasto.length - 1).padEnd(dentro - tasto.length)}<//><${Text} color=${C.grigio}>${tasto}<//><//>
+      <${Text} color=${st.col} wrap="truncate-end">${st.testo}${s.stato?.tipo === 'porta' ? html`<${Text} color=${C.scuro}> · porta ${s.stato.porta}<//>` : ''}<//>
+      <${Text} color=${spenta ? C.scuro : C.gesso} wrap="truncate-end">${spenta ? 'per altri progetti' : `${s.usi?.oggi || 0} ${s.usi?.oggi === 1 ? 'uso' : 'usi'} oggi`}<//>
+      <${Text} color=${C.grigio} wrap="truncate-end">${ultima ? `${oraBreve(ultima.t)} ${ultima.cosa || ultima.chi}` : 'mai usato'}<//>
+    <//>
+  <//>`;
+}
+
+export function PaginaStrumenti({ h, w, lista, sel, progetto, tick, azioni }) {
+  const wG = larghezzaGriglia(w);
+  const col = colonneStrumenti(w);
+  const s = lista[sel];
+  const righeGriglia = [];
+  for (let i = 0; i < lista.length; i += col) righeGriglia.push(lista.slice(i, i + col).map((x, k) => ({ x, i: i + k })));
+  const visibili = Math.max(1, Math.floor((h - 3) / HT));
+  const rigaSel = Math.floor(sel / col);
+  const primaRiga = Math.max(0, Math.min(righeGriglia.length - visibili, rigaSel - visibili + 1));
+  const accesi = lista.filter((x) => x.acceso === true).length;
+  const Pulsante = ({ testo, colore, azione }) => html`<${Box} marginRight=${1}><${Cliccabile} azione=${azione}><${Text} color="#000000" backgroundColor=${colore} bold> ${testo} <//><//><//>`;
+  const wD = w - wG - 2;
+  const st = s ? statoStrumento(s) : null;
+  const contesto = s ? avvolgiParole(String(s.contesto || '').split('\n'), Math.max(10, wD - 4)) : [];
+  const ultime = s?.usi?.ultime || [];
+  // quante righe restano per contesto e azioni, così il pannello non sfora mai
+  const fisse = 14 + (s?.problemi?.length ? s.problemi.length + 2 : 0);
+  const spazio = Math.max(2, h - 2 - fisse);
+  const nCont = Math.min(contesto.length, Math.max(1, Math.floor(spazio / 2)));
+  const nUlt = Math.max(1, spazio - nCont - 2);
+  return html`<${Box} height=${h}>
+    <${Pannello} titolo=${`${I.strumenti} STRUMENTI`} nota=${`${accesi}/${lista.length} accesi · ←→↑↓ scegli · Alt+lettera da ogni pagina`} width=${wG} height=${h} flexShrink=${0} colore=${C.viola}>
+      ${lista.length === 0
+        ? html`<${Neuroni} w=${wG - 4} h=${Math.max(2, h - 3)} tick=${tick} testo="nessuno strumento: le schede stanno in ~/.config/kortex/strumenti" />`
+        : righeGriglia.slice(primaRiga, primaRiga + visibili).map((r, k) => html`<${Box} key=${k} height=${HT}>${r.map(({ x, i }) => html`<${TesseraStrumento} key=${x.id} s=${x} scelto=${i === sel} azione=${() => azioni?.strumento(i)} />`)}<//>`)}
+    <//>
+    <${Pannello} titolo=${s ? `${s.icona} ${s.nome.toUpperCase()}` : 'SCHEDA'} nota=${s ? `@${s.id}${progetto ? ' · progetto ' + progetto : ''}` : ''} colore=${st ? st.col : C.ciano} flexGrow=${1} height=${h}>
+      ${!s ? html`<${Text} color=${C.grigio}>scegli uno strumento<//>` : html`<${Box} flexDirection="column">
+        <${Text} color=${C.gesso} wrap="truncate-end">${s.descrizione || '—'}<//>
+        <${Text}> <//>
+        <${Text} wrap="truncate-end"><${Text} color=${C.grigio}>stato      <//><${Text} color=${st.col} bold>${st.testo}<//><${Text} color=${C.scuro}>${s.stato?.tipo === 'porta' ? `  porta ${s.stato.porta} su ${s.stato.host || 'localhost'}` : ''}<//><//>
+        <${Text} wrap="truncate-end"><${Text} color=${C.grigio}>permessi   <//><${Text} color=${COLORE_PERMESSI[s.permessi] || C.gesso}>${s.permessi}<//><${Text} color=${C.scuro}>${s.permessi === 'lettura' ? '  le IA possono solo guardare' : s.permessi === 'libero' ? '  le IA lavorano senza chiedere' : '  le IA chiedono prima di cambiare'}<//><//>
+        <${Text} wrap="truncate-end"><${Text} color=${C.grigio}>richiamo   <//><${Text} color=${C.ciano}>@${s.id}<//><${Text} color=${C.grigio}> nella richiesta${s.tasto ? ` · Alt+${s.tasto} apre questa scheda` : ''}<//><//>
+        <${Text} wrap="truncate-end"><${Text} color=${C.grigio}>progetti   <//><${Text} color=${C.gesso}>${s.progetti?.length ? s.progetti.join(', ') : 'tutti'}<//><//>
+        <${Text} wrap="truncate-end"><${Text} color=${C.grigio}>collegamento <//><${Text} color=${C.gesso}>${s.mcp?.command ? accorcia(`${s.mcp.command} ${(s.mcp.args || []).join(' ')}`, Math.max(10, wD - 18)) : 'nessuno (solo contesto)'}<//><//>
+        <${Text} wrap="truncate-end"><${Text} color=${C.grigio}>scheda     <//><${Text} color=${C.scuro}>${accorcia(s.percorso || '', Math.max(10, wD - 16))}<//><//>
+        ${s.problemi?.length ? html`<${Box} flexDirection="column">
+          <${Text}> <//>
+          <${Text} color=${C.giallo} bold>DA SISTEMARE<//>
+          ${s.problemi.map((p, i) => html`<${Text} key=${i} color=${C.giallo} wrap="truncate-end">${I.avviso} ${p}<//>`)}
+        <//>` : null}
+        <${Text}> <//>
+        <${Box} height=${1}>
+          <${Pulsante} testo=${wD < 60 ? '▸ USA' : '▸ USA (INVIO)'} colore=${C.ciano} azione=${() => azioni?.usaStrumento(sel)} />
+          ${s.avvia ? html`<${Pulsante} testo=${wD < 60 ? '▲ AVVIA' : '▲ AVVIA (Ctrl+A)'} colore=${C.verde} azione=${() => azioni?.avviaStrumento(sel)} />` : null}
+          <${Pulsante} testo="⊙ CONTROLLA" colore=${C.viola} azione=${() => azioni?.controllaStrumenti()} />
+        <//>
+        <${Text}> <//>
+        <${Text} color=${C.ciano} bold>COSA SANNO LE IA<//>
+        ${contesto.length ? contesto.slice(0, nCont).map((r, i) => html`<${Text} key=${i} color=${C.gesso} wrap="truncate-end">${r || ' '}<//>`) : html`<${Text} color=${C.grigio}>niente di speciale<//>`}
+        ${contesto.length > nCont ? html`<${Text} color=${C.scuro}>… (il resto nella scheda)<//>` : null}
+        <${Text}> <//>
+        <${Text} color=${C.ciano} bold>ULTIME AZIONI<//>
+        ${ultime.length ? ultime.slice(0, nUlt).map((u, i) => html`<${Text} key=${i} wrap="truncate-end"><${Text} color=${C.grigio}>${oraBreve(u.t)} <//><${Text} color=${C.rosa}>${u.chi} <//><${Text} color=${C.gesso}>${u.cosa}<//><//>`) : html`<${Text} color=${C.grigio}>ancora niente: scrivi qui sotto cosa far fare a ${s.nome}<//>`}
+      <//>`}
+    <//>
   <//>`;
 }

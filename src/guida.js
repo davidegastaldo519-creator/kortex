@@ -5,7 +5,7 @@ export const GUIDA = `
 KORTEX fa lavorare insieme più intelligenze artificiali sullo stesso progetto: Claude Code, Codex, Gemini e Ollama. Usa le CLI già installate e collegate ai tuoi abbonamenti, quindi niente chiavi API e niente costi a consumo.
 Tu scrivi cosa vuoi ottenere. Lui divide il lavoro, lo assegna all'IA più adatta, lo fa controllare da un'altra, e tiene un diario per ricordarsi tutto la volta dopo.
 
-# LE SETTE PAGINE
+# LE OTTO PAGINE
 Si cambia pagina con TAB (avanti) e SHIFT+TAB (indietro). ESC torna sempre a LAVORO.
 - LAVORO: a sinistra il terminale, a destra le schede della squadra. Due righe di comando in basso: $ per il terminale, › per le IA. CTRL+T sposta il cursore dall'una all'altra.
 - PROGETTI: i tuoi progetti, le chat di ognuno e i punti di ripristino.
@@ -14,6 +14,7 @@ Si cambia pagina con TAB (avanti) e SHIFT+TAB (indietro). ESC torna sempre a LAV
 - STUDIO: la lavagna. Ci trovi il ragionamento dell'ultima richiesta — piano, passi, verdetto — e i tuoi appunti.
 - STATISTICHE: il tuo lavoro in numeri: richieste, compiti riusciti, file toccati, tempo delle IA, tempo risparmiato, carburante di ogni abbonamento e gli ultimi 14 giorni.
 - GUIDA: questa pagina.
+- STRUMENTI: i programmi di fuori che le IA sanno comandare (Blender e quelli che aggiungi). A sinistra una tessera per strumento, col colore del suo stato; a destra la scheda completa con i pulsanti.
 
 # LE SCHEDE DI LAVORO
 A destra, CTRL+N le fa girare (o /scheda 1..5, o un clic sul nome):
@@ -82,6 +83,14 @@ Gli strumenti sono i programmi di fuori che le IA possono comandare da sole: Ble
 - @blender dentro la richiesta dà quello strumento alla squadra: la parola @ sparisce dal testo, il contesto dello strumento entra nel prompt di tutti i ruoli e Claude riceve il server MCP sulla sua riga di comando
 - Con uno strumento nella richiesta, esecutore, operatore e revisore vanno a Claude: è l'unica CLI che riceve il server MCP, quindi l'unica che può comandare davvero il programma. Le altre IA restano di riserva e tornano in prima fila se Claude non c'è o ha finito il carburante.
 - Con uno strumento attivo il revisore controlla il risultato dentro lo strumento stesso (per Blender: legge la scena con gli strumenti mcp__blender), non solo i file sul disco.
+LA PAGINA STRUMENTI (8, o /strumenti, o Alt+lettera da qualunque pagina):
+- ogni tessera mostra stato (verde acceso, grigio spento, giallo da configurare, azzurro sempre pronto), quante volte l'hai usato oggi, l'ultima azione e il tasto Alt
+- FRECCE scelgono lo strumento, un clic lo sceglie, un secondo clic lo usa
+- INVIO con la riga vuota porta @nome nella riga delle IA di LAVORO; se invece scrivi qualcosa e premi INVIO, parte subito una richiesta con quello strumento
+- CTRL+A (o il pulsante AVVIA) apre il programma, se la scheda ha il campo "avvia"
+- DA SISTEMARE elenca cosa manca (il programma del collegamento, la sua cartella, il programma da avviare): KORTEX lo cerca da solo ogni 30 secondi, o subito con CONTROLLA
+- gli strumenti che nella scheda hanno "progetti" diversi da quello aperto restano in fondo, spenti
+- nella barra in basso il blocco con la chiave inglese dice quanti strumenti sono accesi
 Se lo strumento risulta spento, KORTEX lo scrive nell'OUTPUT prima di partire: per Blender basta aprirlo, il server parte da solo.
 La prima volta KORTEX copia le schede che porta con sé; le tue non vengono mai sovrascritte dagli aggiornamenti.
 
@@ -162,6 +171,7 @@ Si scrivono nella barra in basso, iniziano con la barra /.
 - /ripristina [ID]: punti di ripristino
 - /db: tutti i comandi del database (/db scansiona cataloga i file arrivati da soli)
 - /strumento · /strumento blender: gli strumenti esterni e il loro stato (nella richiesta: @blender)
+- /strumenti: apre la pagina STRUMENTI
 - /tema neon | fuoco | ghiaccio | matrix | tokyonight | dracula | synthwave | vaporwave: colori di tutto KORTEX
 - /profilo programmatore | minecraft | studio | creativo: prepara KORTEX per quel tipo di lavoro (/profilo da solo li elenca)
 - /statistiche: apre la pagina STATISTICHE

@@ -1,6 +1,6 @@
 {
   "name": "kortex",
-  "version": "2.3.1",
+  "version": "2.4.0",
   "description": "Una mente, tante intelligenze: orchestratore di IA da terminale (Claude Code, Codex, Gemini CLI, Ollama) con teschio 3D, compiti in parallelo, operatore, mouse e suoni",
   "type": "module",
   "bin": {

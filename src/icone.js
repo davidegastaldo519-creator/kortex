@@ -4,7 +4,7 @@
 import { execFileSync } from 'node:child_process';
 
 const NERD = {
-  lavoro: '', progetti: '', database: '', controllo: '', studio: '', guida: '', statistiche: '',
+  strumenti: '', lavoro: '', progetti: '', database: '', controllo: '', studio: '', guida: '', statistiche: '',
   terminale: '', agenti: '', output: '', registro: '', diff: '', file: '', cartella: '',
   git: '', ia: '', tempo: '', ora: '', ok: '', errore: '', avviso: '', cerca: '',
   server: '', chip: '', carburante: '', profilo: '', coda: '', razzo: '', stella: '',
@@ -12,7 +12,7 @@ const NERD = {
   sepDx: '', sepSx: '', sepDxTondo: '', sepSxTondo: '',
 };
 const NORMALI = {
-  lavoro: '◈', progetti: '•', database: '◉', controllo: '≡', studio: '◇', guida: '?', statistiche: '◦',
+  strumenti: '◆', lavoro: '◈', progetti: '•', database: '◉', controllo: '≡', studio: '◇', guida: '?', statistiche: '◦',
   terminale: '$', agenti: '◆', output: '›', registro: '≣', diff: '±', file: '·', cartella: '▸',
   git: 'git', ia: '◆', tempo: '⊙', ora: '⊙', ok: '✓', errore: '✗', avviso: '△', cerca: '⊙',
   server: '◈', chip: '◈', carburante: '■', profilo: '◎', coda: '⋯', razzo: '▲', stella: '◆',

@@ -30,7 +30,7 @@ function serbatoio(f, celle = 5) {
 }
 
 export function BarraStato(p) {
-  const { larghezza, config, modo, disponibili, occupato, tick, ramo, cambiati, progresso, etichetta, dettaglio, coda, consiglio } = p;
+  const { larghezza, config, modo, disponibili, occupato, tick, ramo, cambiati, progresso, etichetta, dettaglio, coda, consiglio, strumenti = [] } = p;
   const profilo = PROFILI[config.profilo];
   const sinistra = [
     { t: ` ${I.lavoro} ${modo ? 'CHAT ' + (disponibili[modo]?.nome || modo).toUpperCase() : 'SQUADRA'}${profilo ? ' · ' + profilo.nome : ''} `, fg: NERO, bg: modo ? C.giallo : C.rosa, b: true },
@@ -50,6 +50,12 @@ export function BarraStato(p) {
     const col = d.limitato || f.resto < 0.1 ? C.rosso : f.resto < 0.35 ? C.giallo : C.verde;
     destra.push({ t: ` ${d.nome} `, fg: COLORE_IA[d.id] || C.gesso, bg: SCURO, b: true, extra: { t: `${serbatoio(f)}${f.stimato ? '~' : ''} `, fg: col } });
   }
+  // la mini-barra degli strumenti: quanti sono accesi (verde se tutti, giallo se qualcuno è da configurare)
+  if (strumenti.length) {
+    const accesi = strumenti.filter((s) => s.acceso === true).length;
+    const daFare = strumenti.some((s) => s.problemi?.length);
+    destra.push({ t: ` ${I.strumenti} ${accesi}/${strumenti.length} `, fg: NERO, bg: daFare ? C.giallo : accesi ? C.verde : C.grigio, b: true, strumenti: true });
+  }
   if (coda) destra.push({ t: ` ${I.coda} ${coda} `, fg: NERO, bg: C.giallo, b: true });
   destra.push({ t: ` ${I.ora} ${new Date().toTimeString().slice(0, 5)} `, fg: NERO, bg: C.ciano, b: true });
 
@@ -60,6 +66,7 @@ export function BarraStato(p) {
   const riduzioni = [
     () => { if (profilo) sinistra[0].t = sinistra[0].t.replace(' · ' + profilo.nome, ' · ' + profilo.icona); },
     () => { blocchiDx = blocchiDx.filter((b) => !b.t.includes(I.ora)); },
+    () => { blocchiDx = blocchiDx.filter((b) => !b.strumenti); },
     () => { sinistra[1].t = ` ${I.git}${cambiati ? ` ±${cambiati}` : ''} `; },
     () => { blocchiDx = blocchiDx.map((b) => (b.unito || b.t.includes(I.coda) ? b : { ...b, t: ' ' + b.t.trim().slice(0, 2) + ' ' })); },
     () => { sinistra[0].t = ` ${I.lavoro} ${modo ? 'CHAT' : 'SQ'} `; },

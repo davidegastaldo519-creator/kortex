@@ -207,3 +207,38 @@ test('il prompt del revisore parla dello strumento solo con gli strumenti', () =
   // senza strumenti il testo è identico a quello di prima (nessun parametro passato)
   assert.equal(senzaStrumenti, promptRevisore(compito, 'riepilogo', '', true, false));
 });
+
+// ---------- 2.4.0: registro degli usi, problemi della scheda, campi nuovi ----------
+import { registraUso, usiStrumento, problemiScheda, caricaStrumenti as carica240 } from '../src/strumenti.js';
+
+test('registraUso tiene le azioni più recenti per prime e conta quelle di oggi', () => {
+  const file = path.join(QUI, 'tmp-uso.json');
+  try {
+    registraUso('blender', { chi: 'squadra', cosa: 'crea   un tavolo' }, file);
+    registraUso('blender', { chi: 'tu', cosa: 'app avviata' }, file);
+    const u = usiStrumento('blender', file);
+    assert.equal(u.ultime[0].cosa, 'app avviata');
+    assert.equal(u.ultime[1].cosa, 'crea un tavolo');
+    assert.equal(u.oggi, 2);
+    assert.equal(usiStrumento('nessuno', file).oggi, 0);
+  } finally { fs.rmSync(file, { force: true }); }
+});
+
+test('problemiScheda trova il programma e la cartella che mancano', () => {
+  const p = problemiScheda({ nome: 'X', mcp: { command: 'programma-che-non-esiste-kortex', args: ['--directory', '/cartella/che/non/esiste'] }, avvia: 'altro-programma-inesistente --x' });
+  assert.equal(p.length, 3);
+  assert.deepEqual(problemiScheda({ nome: 'Y', mcp: { command: 'node', args: [] } }), []);
+});
+
+test('una scheda utente senza campi nuovi li riceve dalla predefinita senza perdere i suoi', () => {
+  const mia = path.join(QUI, 'tmp-strumenti-campi');
+  try {
+    fs.mkdirSync(mia, { recursive: true });
+    fs.writeFileSync(path.join(mia, 'blender.json'), '{"id":"blender","nome":"Il mio Blender","permessi":"lettura"}');
+    const s = carica240(mia)[0];
+    assert.equal(s.nome, 'Il mio Blender');
+    assert.equal(s.permessi, 'lettura');
+    assert.equal(s.avvia, 'blender');
+    assert.equal(s.tasto, 'b');
+  } finally { fs.rmSync(mia, { recursive: true, force: true }); }
+});

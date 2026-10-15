@@ -9,7 +9,7 @@ import { spawn } from 'node:child_process';
 import { eseguiRichiesta, chatDiretta, catalogaCon, aggiornaMemoria } from './director.js';
 import { applicaTema, TEMI } from './temi.js';
 import { preferenze, ricorda, dimentica, percorsoPreferenze } from './memoria.js';
-import { caricaStrumenti, controllaStato, avvisoSpento, cartellaStrumenti } from './strumenti.js';
+import { caricaStrumenti, controllaStato, avvisoSpento, cartellaStrumenti, registraUso, usiStrumento, problemiScheda, avviaApp } from './strumenti.js';
 import { campiona, hex, rgbHex } from './colori.js';
 import * as db from './database.js';
 import { apriStato, righeFile, diffColorato } from './state.js';
@@ -27,7 +27,7 @@ import { git as gitCmd } from './state.js';
 import { SchermoStabile } from './schermo.js';
 import { StdinFiltrato, accendiMouse, spegniMouse, eventi as eventiMouse, gestisciClick, gestisciRotella } from './mouse.js';
 import { elencoProgetti, creaProgetto, importaProgetto, registraProgetto, toccaProgetto, progettoDi, elencoChat, creaChat, salvaChat, caricaChat, riassuntoChat, istantanea, elencoIstantanee, ripristina, cambiatiDa, diffDa, ripristinaFile } from './progetti.js';
-import { RUOLI, FILTRI, SCHEDE, BarraAllegati, PaginaSelettore, PaginaTavolozza, PaginaStatistiche, Finestra, TUTORIAL, PaginaLavoro, PaginaControllo, PaginaStudio, PaginaGuida, PaginaProgetti, PaginaDatabase } from './pagine.js';
+import { RUOLI, FILTRI, SCHEDE, BarraAllegati, PaginaSelettore, PaginaTavolozza, PaginaStatistiche, Finestra, TUTORIAL, PaginaLavoro, PaginaControllo, PaginaStudio, PaginaGuida, PaginaProgetti, PaginaDatabase, PaginaStrumenti, colonneStrumenti } from './pagine.js';
 
 const CONSIGLI = [
   'Ctrl+P apre la tavolozza: scrivi due lettere e trovi qualsiasi comando, pagina, tema, profilo o progetto.',
@@ -122,6 +122,11 @@ function App({ config, disponibili, cwd: cwdIniziale, versione, suoni }) {
   const [dbCategoria, setDbCategoria] = useState('tutte');
   const [dbQuery, setDbQuery] = useState('');
   const [dbSel, setDbSel] = useState(0);
+  // la pagina STRUMENTI: l'elenco con lo stato di ognuno (ricontrollato ogni pochi secondi) e quello scelto
+  const [strumenti, setStrumenti] = useState([]);
+  const [strumSel, setStrumSel] = useState(0);
+  const problemiCache = useRef({ t: 0, valori: {} });
+  const letteraDaScartare = useRef(null);
   const [dbVersione, setDbVersione] = useState(0);
   const [notifiche, setNotifiche] = useState([]);
   const [transizione, setTransizione] = useState(0);
@@ -207,6 +212,34 @@ function App({ config, disponibili, cwd: cwdIniziale, versione, suoni }) {
     const t = setInterval(() => setTick((x) => x + 1), passo);
     return () => clearInterval(t);
   }, [config.animazioni, occupato]);
+
+  // Gli strumenti: le schede si rileggono e lo stato si ricontrolla ogni 4 secondi (una prova di
+  // connessione da mezzo secondo al massimo); i problemi della scheda, più lenti, ogni 30 secondi.
+  const aggiornaStrumenti = useCallback(async (forza = false) => {
+    try {
+      const nomeProgetto = path.basename(cwd);
+      const lista = caricaStrumenti(cartellaStrumenti(config));
+      const pc = problemiCache.current;
+      if (forza || Date.now() - pc.t > 30000) { pc.valori = Object.fromEntries(lista.map((x) => [x.id, problemiScheda(x)])); pc.t = Date.now(); }
+      const stati = await Promise.all(lista.map((x) => controllaStato(x).catch(() => null)));
+      const completa = lista.map((x, i) => ({
+        ...x,
+        acceso: stati[i],
+        problemi: pc.valori[x.id] || [],
+        usi: usiStrumento(x.id),
+        altroProgetto: x.progetti.length > 0 && !x.progetti.some((q) => String(q).toLowerCase() === nomeProgetto.toLowerCase()),
+      }));
+      // prima quelli di questo progetto, poi gli altri
+      completa.sort((a, b) => Number(a.altroProgetto) - Number(b.altroProgetto));
+      setStrumenti(completa);
+    } catch { /* gli strumenti non devono mai fermare KORTEX */ }
+  }, [cwd, config]);
+  useEffect(() => {
+    aggiornaStrumenti(true);
+    const t = setInterval(() => aggiornaStrumenti(false), 4000);
+    t.unref?.();
+    return () => clearInterval(t);
+  }, [aggiornaStrumenti]);
 
   useEffect(() => {
     const leggi = () => setRamo((gitCmd(cwd, ['rev-parse', '--abbrev-ref', 'HEAD']) || '').trim() || null);
@@ -461,6 +494,9 @@ function App({ config, disponibili, cwd: cwdIniziale, versione, suoni }) {
   };
   const ultimoInputIA = useRef('');
   const cambiaInputIA = (valore) => {
+    // la lettera di una scorciatoia Alt+lettera non deve finire nella casella
+    const scarta = letteraDaScartare.current;
+    if (scarta && Date.now() < scarta.fino && (valore === inputIA + scarta.ch || valore === (ultimoInputIA.current || '') + scarta.ch)) { letteraDaScartare.current = null; return; }
     // un INVIO arrivato insieme al testo (incollato, o digitato mentre KORTEX era occupato a disegnare)
     // vale come INVIO: la prima riga parte, il resto rimane nella casella
     if (/[\r\n]/.test(valore)) {
@@ -659,6 +695,7 @@ function App({ config, disponibili, cwd: cwdIniziale, versione, suoni }) {
         stato.current.annotaAppunto(arg); scrivi('\n✓ appunto scritto sulla lavagna (pagina STUDIO)\n'); return;
       case 'ia': scrivi('\n' + Object.values(disponibili).map((d) => `${d.ok ? '●' : '○'} ${d.nome.padEnd(8)} ${d.ok ? d.versione || '' : d.nota || ''}${d.limitato ? '  [limite raggiunto]' : ''}`).join('\n') + '\n'); return;
       case 'ruoli': scrivi('\n' + Object.entries(config.ruoli).map(([r, l]) => `${r.padEnd(14)} ${l.join(' → ')}`).join('\n') + '\n'); return;
+      case 'strumenti': vaiAPagina('strumenti'); return;
       case 'strumento': {
         // il segno dello stato: ■ acceso, □ spento, ? non si può sapere
         const segno = (s) => (s === true ? '■ acceso' : s === false ? '□ spento' : '? sconosciuto');
@@ -734,6 +771,17 @@ function App({ config, disponibili, cwd: cwdIniziale, versione, suoni }) {
       const d = datiDb();
       const v = d.voci[dbSel];
       if (v) { setInputIA(`@${v.id} `); setDbQuery(''); setPagina('lavoro'); setFuoco('ia'); scrivi(`\n📚 ${v.titolo}: scrivi cosa farne, l'IA la userà\n`); }
+      return;
+    }
+    if (pagina === 'strumenti') {
+      const st = strumenti[strumSel];
+      if (t.startsWith('/')) return comando(t);
+      if (!st) return;
+      if (!t) return usaStrumento(strumSel);
+      // una frase scritta qui è una richiesta per questo strumento
+      vaiAPagina('lavoro'); setFuoco('ia');
+      if (occupatoRef.current) { codaRef.current = [...codaRef.current, `@${st.id} ${t}`]; setCoda([...codaRef.current]); scrivi(`\n⋯ in coda (${codaRef.current.length}): @${st.id} ${t}\n`); return; }
+      await avviaRichiesta(`@${st.id} ${t}`, {});
       return;
     }
     if (pagina === 'progetti') {
@@ -927,11 +975,27 @@ function App({ config, disponibili, cwd: cwdIniziale, versione, suoni }) {
     setTimeout(() => {
       if (selettore) setSelettore((sl) => (sl ? { ...sl, query: togli(sl.query) } : sl));
       else if (fs2) setInputShell(togli);
-      else setInputIA(togli);
+      else { setInputIA(togli); ultimoInputIA.current = togli(ultimoInputIA.current || ''); }
     }, 0);
   };
 
   // ---------- le azioni del mouse: ogni pagina sa cosa fare con un clic ----------
+  // "Usa": porta @id nella riga delle IA, pronta da completare
+  function usaStrumento(i) {
+    const st = strumenti[i];
+    if (!st) return;
+    setInputIA((v) => (v.includes(`@${st.id}`) ? v : `@${st.id} ${v}`.trimEnd() + ' '));
+    vaiAPagina('lavoro'); setFuoco('ia');
+    if (st.acceso === false) ui.current.notifica(avvisoSpento(st), 'avviso');
+  }
+  function avviaStrumento(i) {
+    const st = strumenti[i];
+    if (!st) return;
+    const r = avviaApp(st);
+    ui.current.notifica(`${st.icona} ${r.testo}`, r.ok ? 'ok' : 'avviso');
+    if (r.ok) { registraUso(st.id, { chi: 'tu', cosa: 'app avviata' }); setTimeout(() => aggiornaStrumenti(false), 3000); }
+  }
+
   const azioni = {
     tick,
     pagina: vaiAPagina,
@@ -956,6 +1020,10 @@ function App({ config, disponibili, cwd: cwdIniziale, versione, suoni }) {
     colonna: (col) => setColonna(col),
     istantanea: (id) => { setInputIA(`/ripristina ${id}`); vaiAPagina('lavoro'); setFuoco('ia'); },
     dbCategoria: (id) => { setDbCategoria(id); setDbSel(0); },
+    strumento: (i) => { if (strumSel === i) usaStrumento(i); else setStrumSel(i); },
+    usaStrumento: (i) => usaStrumento(i),
+    avviaStrumento: (i) => avviaStrumento(i),
+    controllaStrumenti: () => { aggiornaStrumenti(true); ui.current.notifica(`${I.strumenti} ricontrollo gli strumenti`, 'info'); },
     dbVoce: (i) => { if (dbSel === i) { const v = datiDb().voci[i]; if (v) { setInputIA(`@${v.id} `); setDbQuery(''); vaiAPagina('lavoro'); setFuoco('ia'); } } else setDbSel(i); },
     parametro: (i, cosa, ev) => {
       setSelezionato(i);
@@ -983,7 +1051,7 @@ function App({ config, disponibili, cwd: cwdIniziale, versione, suoni }) {
   });
   function gestisciTasto(ch, key) {
     if (process.env.KORTEX_DEBUG_TASTI) { try { fs.appendFileSync(process.env.KORTEX_DEBUG_TASTI, JSON.stringify({ ch, key: Object.entries(key).filter(([, v]) => v).map(([k]) => k), fuoco, finestra, occupato: occupatoRef.current, t: Date.now() % 100000 }) + '\n'); } catch { /* */ } }
-    if (key.ctrl && 'tndfokrp'.includes(ch)) scartaLettera(ch);
+    if (key.ctrl && 'tndfokrpa'.includes(ch)) scartaLettera(ch);
     if (key.ctrl && ch === 'k' && occupato) {
       fermaTutti();
       ui.current.log('» hai saltato l\'IA che stava lavorando: passo alla riserva', { tipo: 'riserva' });
@@ -1030,6 +1098,11 @@ function App({ config, disponibili, cwd: cwdIniziale, versione, suoni }) {
       if (key.downArrow) return setSelettore((s) => ({ ...s, sel: Math.min(Math.max(0, n - 1), s.sel + 1) }));
       return;
     }
+    // Alt+lettera: apre lo strumento con quel tasto, da qualunque pagina
+    if (key.meta && !key.ctrl && ch && ch.length === 1 && /[a-z0-9]/i.test(ch)) {
+      const i = strumenti.findIndex((x) => x.tasto && x.tasto.toLowerCase() === ch.toLowerCase());
+      if (i >= 0) { letteraDaScartare.current = { ch, fino: Date.now() + 300 }; scartaLettera(ch); setStrumSel(i); vaiAPagina('strumenti'); return; }
+    }
     if (key.tab) return cambiaPagina(key.shift ? -1 : 1);
     if (key.escape) return vaiAPagina('lavoro');
     if (pagina === 'controllo') {
@@ -1037,6 +1110,17 @@ function App({ config, disponibili, cwd: cwdIniziale, versione, suoni }) {
       if (key.downArrow) return setSelezionato((x) => (x + 1) % PARAMETRI.length);
       if (key.leftArrow || key.rightArrow) { cambia(config, PARAMETRI[selezionato], key.rightArrow ? 1 : -1); if (PARAMETRI[selezionato].chiave === 'tema') applicaTema(config, C); return salva('salvato'); }
       if (/^[1-5]$/.test(ch)) { const m = applicaMappatura(config, Number(ch) - 1); return salva(`mappatura ${m.nome} applicata`); }
+      return;
+    }
+    if (pagina === 'strumenti') {
+      const n = strumenti.length;
+      const col = colonneStrumenti(c);
+      if (!n) return;
+      if (key.ctrl && ch === 'a') return avviaStrumento(strumSel);
+      if (key.leftArrow) return setStrumSel((x) => Math.max(0, x - 1));
+      if (key.rightArrow) return setStrumSel((x) => Math.min(n - 1, x + 1));
+      if (key.upArrow) return setStrumSel((x) => (x - col >= 0 ? x - col : x));
+      if (key.downArrow) return setStrumSel((x) => (x + col < n ? x + col : x));
       return;
     }
     if (pagina === 'database') {
@@ -1105,6 +1189,7 @@ function App({ config, disponibili, cwd: cwdIniziale, versione, suoni }) {
     corpo = html`<${PaginaStudio} h=${hCorpo} w=${c} lavagna=${lavagna} appunti=${stato.current.appunti()} scorri=${scorri.studio} tick=${tick} massimi=${m} memoria=${memoria} azioni=${azioni} />`;
   }
   else if (pagina === 'statistiche') corpo = html`<${PaginaStatistiche} h=${hCorpo} w=${c} config=${config} disponibili=${disponibili} tick=${tick} />`;
+  else if (pagina === 'strumenti') corpo = html`<${PaginaStrumenti} h=${hCorpo} w=${c} lista=${strumenti} sel=${Math.min(strumSel, Math.max(0, strumenti.length - 1))} progetto=${path.basename(cwd)} tick=${tick} azioni=${azioni} />`;
   else if (pagina === 'guida') corpo = html`<${PaginaGuida} h=${hCorpo} w=${c} scorri=${scorri.guida} massimi=${m} azioni=${azioni} />`;
   else corpo = html`<${PaginaLavoro} config=${config} h=${hCorpo} w=${c} messaggi=${messaggi.current} scorri=${scheda === 'registro' ? scorri.registro : scheda === 'diff' ? scorri.diff : scorri.lavoro} log=${log} ruoli=${ruoli} disponibili=${disponibili} compiti=${compiti} file=${file} tick=${tick} massimi=${m} tel=${tel.current} scheda=${scheda} fuoco=${fuoco} filtro=${filtro} destinazioni=${destinazioni} dest=${dest} sessione=${sessione} scorriShell=${scorri.shell} inCorso=${shellInCorso} azioni=${azioni} coda=${coda} domanda=${domanda} diff=${scheda === 'diff' ? datiDiff() : null} />`;
 
@@ -1128,12 +1213,12 @@ function App({ config, disponibili, cwd: cwdIniziale, versione, suoni }) {
 
   const inLavoro = pagina === 'lavoro' && !selettore;
   const fuocoShell = inLavoro && fuoco === 'shell';
-  const segnapostoIA = selettore?.tipo === 'tavolozza' ? 'cerca: un comando, una pagina, un tema, un profilo, un progetto, una voce del database…' : selettore ? 'scrivi una parte del nome del file…' : pagina === 'progetti' ? 'nome del nuovo progetto e INVIO · INVIO da solo apre quello selezionato · ←→ ↑↓ per muoverti' : pagina === 'database' ? 'scrivi per cercare · INVIO usa la voce scelta · trascina un file per aggiungerlo · /db per i comandi' : domanda ? 'rispondi con un numero da 1 a 4 (o clicca), ESC lascia decidere il direttore' : occupato ? 'scrivi la prossima richiesta: si mette in coda e parte da sola' : modo ? `scrivi a ${disponibili[modo].nome}…` : 'scrivi cosa vuoi fare…   (trascina qui file e foto · /aiuto)';
+  const segnapostoIA = selettore?.tipo === 'tavolozza' ? 'cerca: un comando, una pagina, un tema, un profilo, un progetto, una voce del database…' : selettore ? 'scrivi una parte del nome del file…' : pagina === 'progetti' ? 'nome del nuovo progetto e INVIO · INVIO da solo apre quello selezionato · ←→ ↑↓ per muoverti' : pagina === 'strumenti' ? (strumenti[strumSel] ? `scrivi cosa far fare a ${strumenti[strumSel].nome} e INVIO · INVIO da solo: @${strumenti[strumSel].id} nella riga di LAVORO` : 'nessuno strumento: /strumento per sapere dove stanno le schede') : pagina === 'database' ? 'scrivi per cercare · INVIO usa la voce scelta · trascina un file per aggiungerlo · /db per i comandi' : domanda ? 'rispondi con un numero da 1 a 4 (o clicca), ESC lascia decidere il direttore' : occupato ? 'scrivi la prossima richiesta: si mette in coda e parte da sola' : modo ? `scrivi a ${disponibili[modo].nome}…` : 'scrivi cosa vuoi fare…   (trascina qui file e foto · /aiuto)';
   const segnapostoShell = shellInCorso ? 'comando in corso… (Ctrl+C per fermarlo)' : `comando su ${dest.nome}…   (↑↓ precedenti · Ctrl+D cambia macchina)`;
 
   return html`<${Box} flexDirection="column" width=${c} height=${H} overflow="hidden">
     <${Box} height=${hTesta} overflow="hidden">
-      <${Intestazione} config=${config} tick=${tick} pagina=${pagina} modo=${modo} disponibili=${disponibili} occupato=${occupato} etichetta=${etichetta} costo=${costo} larghezza=${c} grande=${grande} versione=${versione} progetto=${progetto?.nome || path.basename(cwd)} chat=${chat?.titolo} onPagina=${vaiAPagina} sguardo=${sguardo} lampeggio=${lampeggio} tel=${tel.current} coda=${coda.length} suoniAttivi=${!!suoni?.attivi} mouseAttivo=${config.mouse !== false} />
+      <${Intestazione} config=${config} tick=${tick} pagina=${pagina} modo=${modo} disponibili=${disponibili} occupato=${occupato} etichetta=${etichetta} costo=${costo} larghezza=${c} grande=${grande} versione=${versione} progetto=${progetto?.nome || path.basename(cwd)} chat=${chat?.titolo} onPagina=${vaiAPagina} sguardo=${sguardo} lampeggio=${lampeggio} tel=${tel.current} coda=${coda.length} strumenti=${strumenti} suoniAttivi=${!!suoni?.attivi} mouseAttivo=${config.mouse !== false} />
     <//>
     ${corpo}
     ${conAllegati && html`<${BarraAllegati} allegati=${allegati} larghezza=${c} azioni=${azioni} />`}
