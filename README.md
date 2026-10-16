@@ -95,7 +95,7 @@ Si passa da una pagina all'altra con **TAB**. ESC riporta sempre a LAVORO.
 - **STUDIO** — la lavagna col ragionamento dell'ultima richiesta e i tuoi appunti (`/nota`).
 - **STATISTICHE** — richieste, compiti riusciti, file toccati, tempo delle IA, tempo risparmiato, carburante di ogni abbonamento e gli ultimi 14 giorni.
 - **GUIDA** — il manuale completo.
-- **STRUMENTI** — i programmi esterni che le IA sanno comandare, come **Blender**: una tessera per strumento con stato, usi di oggi e ultima azione; a destra la scheda con i pulsanti USA, AVVIA e CONTROLLA. Ci arrivi anche con Alt+lettera (Alt+B per Blender) da qualunque pagina, e `@blender` nella richiesta dà lo strumento alla squadra.
+- **STRUMENTI** — i programmi esterni che le IA sanno comandare, come **Blender** e **GitHub**: una tessera per strumento con stato, usi di oggi e ultima azione; a destra la scheda con i pulsanti USA, AVVIA e CONTROLLA. Ci arrivi anche con Alt+lettera (Alt+B per Blender, Alt+G per GitHub) da qualunque pagina; `@blender` e `@github` nella richiesta danno lo strumento alla squadra.
 
 In qualunque pagina **Ctrl+P** apre la tavolozza: due lettere e trovi pagine, temi, profili, progetti e voci del database. L'ultima riga è la **barra di stato**: modalità e profilo, ramo git, avanzamento, carburante delle IA (stimato all'inizio, poi imparato al primo limite vero), coda e ora.
 
@@ -114,6 +114,16 @@ Gli **strumenti** sono i programmi di fuori che le IA possono comandare da sole.
 Scrivi **`@blender`** dentro la richiesta: la parola `@` sparisce dal testo, il contesto dello strumento entra nel prompt di **tutti i ruoli** e Claude riceve il server MCP sulla sua riga di comando. Prima di partire KORTEX controlla se lo strumento è acceso e, se non lo è, lo scrive nell'OUTPUT con il rimedio (per Blender basta aprirlo, il server parte da solo). `/strumento` elenca gli strumenti con il loro stato (■ acceso, □ spento, ? sconosciuto), `/strumento blender` mostra la scheda intera e dove sta il file.
 
 Quando la richiesta usa uno strumento, i ruoli **esecutore**, **operatore** e **revisore** vanno a **Claude**: è l'unica CLI che riceve il server MCP, quindi l'unica che può comandare davvero il programma. Le altre IA restano di **riserva** e tornano in prima fila se Claude non c'è o ha finito il carburante. Al revisore, in più, viene chiesto di controllare il risultato **dentro lo strumento** (per Blender: leggendo la scena con gli strumenti `mcp__blender`), non solo i file sul disco. Senza strumenti non cambia niente rispetto a prima.
+
+Lo strumento **GitHub** permette alle IA di lavorare su repository, issue, pull request e release usando i comandi **gh** e **git**. La scheda è già presente. Per attivarlo, basta che `gh` sia collegato al tuo account; se non lo è, fai tu `gh auth login` in un terminale. KORTEX usa la CLI `gh`: non salva token nei file e non gestisce il collegamento. Scrivi **`@github`** nella richiesta: la `@` sparisce dal testo e il contesto GitHub entra nel prompt di tutti i ruoli, come con `@blender`. **Alt+G** apre la tessera da qualunque pagina; `/strumento github` mostra la scheda intera e dove si trova il file. Lo stato indica se `gh` è collegato e nella scheda vedi anche l'account.
+
+I permessi possibili sono:
+
+- **lettura**: le IA possono solo guardare;
+- **conferma**: le IA guardano e propongono le modifiche, come all'installazione;
+- **libero**: possono cambiare le cose da sole.
+
+Con **conferma**, i comandi che modificano qualcosa, come `git push`, `git commit`, creare o chiudere issue e pull request e pubblicare release, vengono raccolti nel blocco **COMANDI DA CONFERMARE** e mostrati nell'OUTPUT, uno per riga. KORTEX non li esegue: puoi controllarli e lanciarli tu.
 
 ## Grafica, mouse e suoni
 
@@ -181,7 +191,7 @@ kortex
 | `/chat nuova` · `/chat apri N` | chat del progetto aperto |
 | `/ripristina [ID]` | punti di ripristino |
 | `/db` | database: aggiungi, nota, cerca, sposta, tag, togli, github, sync, scansiona |
-| `/strumento [id]` | gli strumenti esterni e il loro stato (nella richiesta: `@blender`) |
+| `/strumento [id]` | gli strumenti esterni e il loro stato (nella richiesta: `@blender`, `@github`) |
 | `/tema nome` | neon, fuoco, ghiaccio, matrix, tokyonight, dracula, synthwave, vaporwave |
 | `/profilo nome` | programmatore, minecraft, studio, creativo |
 | `/statistiche` | apre la pagina STATISTICHE |

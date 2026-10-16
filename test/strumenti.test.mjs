@@ -16,7 +16,14 @@ import {
   strumentoPerId,
   copiaSchedePredefinite,
 } from '../src/strumenti.js';
-import { candidati, ordinaPerStrumenti, promptRevisore } from '../src/director.js';
+import {
+  candidati,
+  ordinaPerStrumenti,
+  promptRevisore,
+  uniscoArgs,
+  estraiComandiDaConfermare,
+  TITOLO_CONFERMA,
+} from '../src/director.js';
 
 // La cartella di questa prova e quella delle schede che KORTEX porta con sé.
 // Si ricavano dal file, così le prove funzionano da qualunque cartella si lanci npm test.
@@ -241,4 +248,312 @@ test('una scheda utente senza campi nuovi li riceve dalla predefinita senza perd
     assert.equal(s.avvia, 'blender');
     assert.equal(s.tasto, 'b');
   } finally { fs.rmSync(mia, { recursive: true, force: true }); }
+});
+
+// ---------- 2.5.0: scheda GitHub, stato di tipo comando, regole Bash ----------
+import {
+  statoConDettaglio,
+  svuotaCacheStato,
+  argomentiBash,
+  BLOCCO_BASH,
+  controllaStato,
+} from '../src/strumenti.js';
+
+// La scheda GitHub che KORTEX porta con sé: i campi che contano e un'icona stretta davvero.
+test('la scheda github ha i campi giusti e un icona larga uno', () => {
+  const gh = strumentoPerId('github', SCHEDE);
+  assert.notEqual(gh, null);
+  assert.equal(gh.nome, 'GitHub');
+  assert.equal(gh.tasto, 'g');
+  assert.equal(gh.permessi, 'conferma');
+  assert.equal(gh.avvia, 'xdg-open https://github.com');
+  assert.equal(gh.stato.tipo, 'comando');
+  assert.equal(gh.stato.comando, 'gh auth status');
+  assert.equal(gh.stato.mostra, 'gh api user -q .login');
+  // l'icona deve essere un solo carattere ASCII: così il terminale e Ink la contano uguale
+  assert.equal(gh.icona.length, 1);
+  assert.ok(/^[\x20-\x7e]$/.test(gh.icona), 'l icona deve essere ASCII, niente simboli larghi due');
+  // il contesto dice le cose che non si devono indovinare
+  assert.ok(gh.contesto.includes('gh api user -q .login'));
+  assert.ok(gh.contesto.includes('gh auth'));
+  assert.ok(gh.contesto.includes('COMANDI DA CONFERMARE'));
+  assert.ok(gh.contesto.includes('token'));
+  // le regole bash ci sono in tutte e due le liste
+  assert.ok(gh.bash.lettura.includes('Bash(gh repo view:*)'));
+  assert.ok(gh.bash.lettura.includes('Bash(git status:*)'));
+  assert.deepEqual(gh.bash.scrittura, ['Bash(gh:*)', 'Bash(git:*)']);
+});
+
+// Lo stato di tipo comando: 0 = acceso, codice diverso = spento, programma assente = sconosciuto.
+test('lo stato di tipo comando legge il codice di uscita', async () => {
+  const acceso = await statoConDettaglio({ stato: { tipo: 'comando', comando: 'true' } });
+  assert.equal(acceso.acceso, true);
+  const spento = await statoConDettaglio({ stato: { tipo: 'comando', comando: 'false' } });
+  assert.equal(spento.acceso, false);
+  const assente = await statoConDettaglio({ stato: { tipo: 'comando', comando: 'programma-che-non-esiste-kortex' } });
+  assert.equal(assente.acceso, null);
+  // una scheda senza stato, o con uno stato sbagliato, non deve mai far saltare niente
+  assert.equal((await statoConDettaglio({})).acceso, null);
+  assert.equal((await statoConDettaglio(null)).acceso, null);
+  assert.equal((await statoConDettaglio({ stato: { tipo: 'comando' } })).acceso, null);
+  assert.equal((await statoConDettaglio({ stato: { tipo: 'inventato' } })).acceso, null);
+  // controllaStato dà solo il sì/no, come prima
+  assert.equal(await controllaStato({ stato: { tipo: 'comando', comando: 'true' } }), true);
+});
+
+// Un comando che non finisce viene ucciso dopo tre secondi e lo strumento risulta spento.
+test('un comando che non finisce vale spento', async () => {
+  const inizio = Date.now();
+  const r = await statoConDettaglio({ stato: { tipo: 'comando', comando: 'sleep 9' } });
+  assert.equal(r.acceso, false);
+  assert.ok(Date.now() - inizio < 8000, 'non deve aspettare la fine del comando');
+});
+
+// Il campo "mostra": solo la prima riga, ripulita e tagliata se è troppo lunga.
+test('mostra dà la prima riga dell output, tagliata se è lunga', async () => {
+  const cartella = path.join(QUI, 'tmp-stato-mostra');
+  try {
+    fs.mkdirSync(cartella, { recursive: true });
+    fs.writeFileSync(path.join(cartella, 'aaa.txt'), '');
+    fs.writeFileSync(path.join(cartella, 'bbb.txt'), '');
+    const r = await statoConDettaglio({ stato: { tipo: 'comando', comando: 'true', mostra: `ls -1 ${cartella}` } });
+    assert.equal(r.acceso, true);
+    assert.equal(r.dettaglio, 'aaa.txt', 'solo la prima riga');
+
+    // una riga lunghissima viene tagliata a 40 caratteri
+    const lunga = path.join(QUI, 'tmp-stato-lunga');
+    fs.mkdirSync(lunga, { recursive: true });
+    fs.writeFileSync(path.join(lunga, 'nome-di-file-molto-molto-lungo-che-non-sta-in-una-tessera.txt'), '');
+    const t = await statoConDettaglio({ stato: { tipo: 'comando', comando: 'true', mostra: `ls -1 ${lunga}` } });
+    assert.equal(t.dettaglio.length, 40);
+    assert.ok(t.dettaglio.endsWith('…'));
+    fs.rmSync(lunga, { recursive: true, force: true });
+
+    // se "mostra" non funziona, lo stato resta buono e il dettaglio non c'è
+    const senza = await statoConDettaglio({ stato: { tipo: 'comando', comando: 'true', mostra: 'programma-che-non-esiste-kortex' } });
+    assert.equal(senza.acceso, true);
+    assert.equal(senza.dettaglio, undefined);
+  } finally {
+    fs.rmSync(cartella, { recursive: true, force: true });
+  }
+});
+
+// Il risultato si tiene da parte 30 secondi: il comando non si rilancia a ogni aggiornamento,
+// e CONTROLLA (svuotaCacheStato) fa rifare la prova subito.
+test('il risultato resta in cache finché non si svuota', async () => {
+  const cartella = path.join(QUI, 'tmp-stato-cache');
+  try {
+    fs.mkdirSync(cartella, { recursive: true });
+    fs.writeFileSync(path.join(cartella, 'primo.txt'), '');
+    const stato = { tipo: 'comando', comando: 'true', mostra: `ls -1 ${cartella}` };
+    const prima = await statoConDettaglio({ stato });
+    assert.equal(prima.dettaglio, 'primo.txt');
+
+    // cambio il mondo sotto: finché la cache vale, la risposta deve restare quella di prima
+    fs.rmSync(path.join(cartella, 'primo.txt'));
+    fs.writeFileSync(path.join(cartella, 'dopo.txt'), '');
+    const ancora = await statoConDettaglio({ stato });
+    assert.equal(ancora.dettaglio, 'primo.txt', 'il comando non deve essere rilanciato');
+
+    // svuotata la cache, la prova si rifà davvero
+    svuotaCacheStato();
+    const nuova = await statoConDettaglio({ stato });
+    assert.equal(nuova.dettaglio, 'dopo.txt');
+
+    // si può svuotare anche solo uno strumento, e senza niente da svuotare non si lamenta
+    svuotaCacheStato({ stato });
+    svuotaCacheStato('chiave-che-non-esiste');
+    assert.equal((await statoConDettaglio({ stato })).dettaglio, 'dopo.txt');
+  } finally {
+    fs.rmSync(cartella, { recursive: true, force: true });
+    svuotaCacheStato();
+  }
+});
+
+// argomentiBash: la forma provata sulla CLI è una sola opzione con le regole separate da virgola.
+test('argomentiBash dà le regole di lettura e la lista dei divieti', () => {
+  const gh = strumentoPerId('github', SCHEDE);
+  const args = argomentiBash([gh]);
+  assert.equal(args.length, 4);
+  assert.equal(args[0], '--allowedTools');
+  assert.equal(args[2], '--disallowedTools');
+  // solo lettura fra i permessi, e niente spazi dopo le virgole
+  assert.ok(args[1].includes('Bash(gh repo view:*)'));
+  assert.equal(args[1].includes('Bash(gh:*)'), false);
+  assert.equal(args[1].includes(', '), false);
+  assert.deepEqual(args[1].split(','), gh.bash.lettura);
+  // la lista dei divieti è quella intera, nello stesso ordine
+  assert.deepEqual(args[3].split(','), BLOCCO_BASH);
+  assert.ok(args[3].includes('Bash(git push:*)'));
+  assert.ok(args[3].includes('Bash(gh api --method:*)'));
+
+  // con i permessi di sola lettura cambia niente: il recinto serve lo stesso
+  const soloLettura = argomentiBash([{ ...gh, permessi: 'lettura' }]);
+  assert.deepEqual(soloLettura, args);
+});
+
+test('con i permessi liberi argomentiBash non mette divieti', () => {
+  const gh = strumentoPerId('github', SCHEDE);
+  const args = argomentiBash([{ ...gh, permessi: 'libero' }]);
+  assert.equal(args.length, 2);
+  assert.equal(args[0], '--allowedTools');
+  assert.equal(args.includes('--disallowedTools'), false);
+  const regole = args[1].split(',');
+  assert.ok(regole.includes('Bash(gh:*)'));
+  assert.ok(regole.includes('Bash(git:*)'));
+  assert.ok(regole.includes('Bash(git status:*)'));
+  // nessuna regola ripetuta
+  assert.equal(new Set(regole).size, regole.length);
+});
+
+test('senza strumenti con comandi bash non si aggiunge nessun argomento', () => {
+  assert.deepEqual(argomentiBash([]), []);
+  assert.deepEqual(argomentiBash(null), []);
+  assert.deepEqual(argomentiBash([{ id: 'finto', nome: 'Finto' }]), []);
+  // blender non ha comandi bash: solo il server MCP
+  assert.deepEqual(argomentiBash([strumentoPerId('blender', SCHEDE)]), []);
+});
+
+// Chi ha già la scheda in ~/.kortex-app riceve i campi nuovi dalla predefinita, anche dentro
+// "stato", senza che il suo file venga toccato.
+test('una scheda utente eredita stato comando, bash e contesto dalla predefinita', () => {
+  const mia = path.join(QUI, 'tmp-strumenti-github');
+  try {
+    fs.mkdirSync(mia, { recursive: true });
+    const suo = '{"id":"github","nome":"Il mio GitHub","stato":{"comando":"true"}}';
+    fs.writeFileSync(path.join(mia, 'github.json'), suo);
+    const s = carica240(mia)[0];
+    // quello che ha scritto lui resta suo
+    assert.equal(s.nome, 'Il mio GitHub');
+    assert.equal(s.stato.comando, 'true');
+    // quello che gli manca arriva dalla predefinita, anche dentro "stato"
+    assert.equal(s.stato.tipo, 'comando');
+    assert.equal(s.stato.mostra, 'gh api user -q .login');
+    assert.equal(s.tasto, 'g');
+    assert.equal(s.permessi, 'conferma');
+    assert.ok(s.bash.lettura.includes('Bash(gh api:*)'));
+    assert.ok(s.contesto.includes('COMANDI DA CONFERMARE'));
+    // e il suo file non è stato riscritto
+    assert.equal(fs.readFileSync(path.join(mia, 'github.json'), 'utf8'), suo);
+  } finally { fs.rmSync(mia, { recursive: true, force: true }); }
+});
+
+// La menzione @github: viene riconosciuta come le altre, e in una frase con due strumenti
+// ognuno porta solo i suoi argomenti (il server MCP per blender, le regole Bash per github).
+test('riconosce @github e tiene separati gli argomenti dei due strumenti', () => {
+  const trovati = trovaMenzioni('guarda le PR con @github', SCHEDE);
+  assert.equal(trovati.length, 1);
+  assert.equal(trovati[0].id, 'github');
+  assert.equal(trovati[0].nome, 'GitHub');
+
+  // la parola sparisce e il testo resta leggibile
+  const frase = 'guarda le PR con @github e dimmi come va';
+  const pulito = togliMenzioni(frase, trovaMenzioni(frase, SCHEDE));
+  assert.equal(pulito, 'guarda le PR con e dimmi come va');
+  assert.equal(pulito.includes('@github'), false);
+  assert.equal(pulito.includes('  '), false);
+  assert.equal(pulito, pulito.trim());
+
+  // due strumenti nella stessa frase: tornano tutti e due
+  const due = trovaMenzioni('apri @blender poi controlla @github', SCHEDE);
+  assert.equal(due.length, 2);
+  assert.deepEqual(due.map((s) => s.id).sort(), ['blender', 'github']);
+  // il server MCP lo porta solo blender
+  const mcp = argomentiMcp(due);
+  assert.equal(mcp[3], 'mcp__blender');
+  assert.equal(mcp[3].includes('github'), false);
+  assert.equal(JSON.parse(mcp[1]).mcpServers.github, undefined);
+  // le regole Bash le porta solo github
+  const bash = argomentiBash(due);
+  assert.ok(bash[1].includes('Bash(gh repo view:*)'));
+  assert.equal(bash[1].includes('blender'), false);
+});
+
+// L'unione con il profilo di permessi dell'operatore, che ha già --allowedTools Bash:
+// non si perde niente di quello che c'era e non si ripete niente.
+test('gli argomenti degli strumenti si uniscono al profilo dell operatore senza doppioni', () => {
+  const gh = strumentoPerId('github', SCHEDE);
+  const blender = strumentoPerId('blender', SCHEDE);
+  // il profilo vero, letto dal file: così se cambia la prova se ne accorge
+  const config = JSON.parse(fs.readFileSync(path.join(QUI, '..', 'config.default.json'), 'utf8'));
+  const profilo = config.profili.operatore.claude;
+  assert.deepEqual(profilo, ['--permission-mode', 'acceptEdits', '--allowedTools', 'Bash']);
+
+  const uniti = uniscoArgs(profilo, [...argomentiMcp([gh, blender]), ...argomentiBash([gh])]);
+
+  // --allowedTools compare una volta sola
+  assert.equal(uniti.filter((x) => x === '--allowedTools').length, 1);
+  const regole = uniti[uniti.indexOf('--allowedTools') + 1].split(',');
+  // c'è ancora quello che il profilo permetteva, più il server MCP e le regole di lettura
+  assert.ok(regole.includes('Bash'), 'la regola del profilo non si deve perdere');
+  assert.ok(regole.includes('mcp__blender'));
+  assert.ok(regole.includes('Bash(gh repo view:*)'));
+  assert.ok(regole.includes('Bash(git status:*)'));
+  // nessuna regola ripetuta
+  assert.equal(new Set(regole).size, regole.length);
+
+  // il resto del profilo resta dov'era, nello stesso ordine
+  assert.equal(uniti[0], '--permission-mode');
+  assert.equal(uniti[1], 'acceptEdits');
+  // il server MCP c'è una volta sola e i divieti sono tutti quelli del blocco
+  assert.equal(uniti.filter((x) => x === '--mcp-config').length, 1);
+  assert.equal(uniti.filter((x) => x === '--disallowedTools').length, 1);
+  assert.deepEqual(uniti[uniti.indexOf('--disallowedTools') + 1].split(','), BLOCCO_BASH);
+
+  // unire due volte di seguito non aggiunge niente di nuovo
+  assert.deepEqual(uniscoArgs(uniti, argomentiBash([gh])), uniti);
+});
+
+// Il blocco COMANDI DA CONFERMARE: si legge dalla risposta e non si esegue niente.
+// Solo stringhe: questa prova non lancia nessun processo.
+test('estraiComandiDaConfermare legge i comandi e li ripulisce', () => {
+  const risposta = [
+    'Ho guardato il repo.',
+    '',
+    '## Riepilogo',
+    'Tutto a posto.',
+    '',
+    TITOLO_CONFERMA,
+    '- gh pr create --title "prova"',
+    '1. `git push origin main`',
+    '```',
+    '$ gh release create v1',
+    '```',
+    '> gh pr merge 7',
+    '- gh pr create --title "prova"',
+    '',
+    '## Note',
+    'altro testo',
+  ].join('\n');
+
+  const { comandi, testo } = estraiComandiDaConfermare(risposta);
+  // nell'ordine scritto, senza le decorazioni del markdown e senza doppioni
+  assert.deepEqual(comandi, [
+    'gh pr create --title "prova"',
+    'git push origin main',
+    'gh release create v1',
+    'gh pr merge 7',
+  ]);
+  // il testo torna senza il blocco dei comandi
+  assert.equal(testo, 'Ho guardato il repo.\n\n## Riepilogo\nTutto a posto.');
+  assert.equal(testo.includes(TITOLO_CONFERMA), false);
+  assert.equal(testo.includes('gh pr create'), false);
+
+  // un titolo scritto con ** o con # davanti viene riconosciuto lo stesso
+  assert.deepEqual(estraiComandiDaConfermare(`**${TITOLO_CONFERMA}**\n- gh pr list`).comandi, ['gh pr list']);
+  assert.deepEqual(estraiComandiDaConfermare(`## ${TITOLO_CONFERMA}\n- gh pr list`).comandi, ['gh pr list']);
+
+  // con due blocchi vale quello in fondo
+  const due = estraiComandiDaConfermare(`${TITOLO_CONFERMA}\n- primo\n\n# ${TITOLO_CONFERMA}\n- secondo`);
+  assert.deepEqual(due.comandi, ['secondo']);
+
+  // senza quel titolo non si tocca niente
+  const semplice = 'solo una risposta normale\nsenza comandi in fondo';
+  assert.deepEqual(estraiComandiDaConfermare(semplice), { comandi: [], testo: semplice });
+  assert.deepEqual(estraiComandiDaConfermare(''), { comandi: [], testo: '' });
+  assert.deepEqual(estraiComandiDaConfermare(null), { comandi: [], testo: '' });
+  assert.deepEqual(estraiComandiDaConfermare(undefined), { comandi: [], testo: '' });
+
+  // un blocco senza comandi dentro torna vuoto, e il titolo resta un titolo
+  assert.deepEqual(estraiComandiDaConfermare(`testo\n${TITOLO_CONFERMA}\n\n## Fine\ngh pr list`).comandi, []);
 });

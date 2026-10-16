@@ -672,11 +672,14 @@ export const colonneStrumenti = (w) => Math.max(1, Math.floor((larghezzaGriglia(
 
 const oraBreve = (t) => new Date(t).toTimeString().slice(0, 5);
 
-// lo stato di uno strumento in parole e colore
+// lo stato di uno strumento in parole e colore. Chi ha un controllo nella scheda (una porta
+// o un comando, come GitHub) ha tre stati veri: acceso, spento, sconosciuto. Chi non ha
+// nessun controllo è sempre pronto, perché non c'è niente da accendere.
 export function statoStrumento(s) {
   if (s.problemi?.length) return { testo: `${I.avviso} da configurare`, col: C.giallo };
   if (s.acceso === true) return { testo: '■ acceso', col: C.verde };
   if (s.acceso === false) return { testo: '□ spento', col: C.grigio };
+  if (s.stato?.tipo) return { testo: '◇ sconosciuto', col: C.ciano };
   return { testo: '◇ sempre pronto', col: C.ciano };
 }
 const COLORE_PERMESSI = { libero: C.verde, conferma: C.giallo, lettura: C.ciano };
@@ -714,7 +717,7 @@ export function PaginaStrumenti({ h, w, lista, sel, progetto, tick, azioni }) {
   const contesto = s ? avvolgiParole(String(s.contesto || '').split('\n'), Math.max(10, wD - 4)) : [];
   const ultime = s?.usi?.ultime || [];
   // quante righe restano per contesto e azioni, così il pannello non sfora mai
-  const fisse = 14 + (s?.problemi?.length ? s.problemi.length + 2 : 0);
+  const fisse = 14 + (s?.stato?.mostra ? 1 : 0) + (s?.problemi?.length ? s.problemi.length + 2 : 0);
   const spazio = Math.max(2, h - 2 - fisse);
   const nCont = Math.min(contesto.length, Math.max(1, Math.floor(spazio / 2)));
   const nUlt = Math.max(1, spazio - nCont - 2);
@@ -731,6 +734,7 @@ export function PaginaStrumenti({ h, w, lista, sel, progetto, tick, azioni }) {
         <${Text} wrap="truncate-end"><${Text} color=${C.grigio}>stato      <//><${Text} color=${st.col} bold>${st.testo}<//><${Text} color=${C.scuro}>${s.stato?.tipo === 'porta' ? `  porta ${s.stato.porta} su ${s.stato.host || 'localhost'}` : ''}<//><//>
         <${Text} wrap="truncate-end"><${Text} color=${C.grigio}>permessi   <//><${Text} color=${COLORE_PERMESSI[s.permessi] || C.gesso}>${s.permessi}<//><${Text} color=${C.scuro}>${s.permessi === 'lettura' ? '  le IA possono solo guardare' : s.permessi === 'libero' ? '  le IA lavorano senza chiedere' : '  le IA chiedono prima di cambiare'}<//><//>
         <${Text} wrap="truncate-end"><${Text} color=${C.grigio}>richiamo   <//><${Text} color=${C.ciano}>@${s.id}<//><${Text} color=${C.grigio}> nella richiesta${s.tasto ? ` · Alt+${s.tasto} apre questa scheda` : ''}<//><//>
+        ${s.stato?.mostra ? html`<${Text} wrap="truncate-end"><${Text} color=${C.grigio}>account    <//><${Text} color=${s.dettaglio ? C.gesso : C.grigio}>${s.dettaglio || 'account non rilevato'}<//><//>` : null}
         <${Text} wrap="truncate-end"><${Text} color=${C.grigio}>progetti   <//><${Text} color=${C.gesso}>${s.progetti?.length ? s.progetti.join(', ') : 'tutti'}<//><//>
         <${Text} wrap="truncate-end"><${Text} color=${C.grigio}>collegamento <//><${Text} color=${C.gesso}>${s.mcp?.command ? accorcia(`${s.mcp.command} ${(s.mcp.args || []).join(' ')}`, Math.max(10, wD - 18)) : 'nessuno (solo contesto)'}<//><//>
         <${Text} wrap="truncate-end"><${Text} color=${C.grigio}>scheda     <//><${Text} color=${C.scuro}>${accorcia(s.percorso || '', Math.max(10, wD - 16))}<//><//>

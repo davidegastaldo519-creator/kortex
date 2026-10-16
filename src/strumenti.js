@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import net from 'node:net';
-import { spawn, execFileSync } from 'node:child_process';
+import { spawn, execFile, execFileSync } from 'node:child_process';
 import { DIR_CONFIG, RADICE } from './config.js';
 
 // Gli STRUMENTI sono i programmi esterni che le IA possono comandare: Blender, un server, un gioco.
@@ -56,9 +56,17 @@ export function copiaSchedePredefinite(opz = {}) {
   return copiati;
 }
 
-// Legge una scheda e mette i valori di riserva dove manca qualcosa.
-function leggiScheda(percorso) {
-  const s = JSON.parse(fs.readFileSync(percorso, 'utf8'));
+// Le regole dei comandi Bash della scheda, in due elenchi: quelle di sola lettura e quelle
+// che modificano. Si scrivono come le vuole Claude, per esempio "Bash(gh repo view:*)".
+function leggiBash(b) {
+  if (!b || typeof b !== 'object') return null;
+  const elenco = (x) => (Array.isArray(x) ? x.map((r) => String(r).trim()).filter(Boolean) : []);
+  const fuori = { lettura: elenco(b.lettura), scrittura: elenco(b.scrittura) };
+  return fuori.lettura.length || fuori.scrittura.length ? fuori : null;
+}
+
+// Mette i valori di riserva dove la scheda non dice niente.
+function normalizzaScheda(s, percorso) {
   const id = String(s.id || path.basename(percorso, '.json')).toLowerCase();
   return {
     id,
@@ -71,11 +79,13 @@ function leggiScheda(percorso) {
     avviso: s.avviso || '',
     avvia: s.avvia || '',
     mcp: s.mcp || null,
+    bash: leggiBash(s.bash),
     contesto: s.contesto || '',
     progetti: Array.isArray(s.progetti) ? s.progetti : [],
     percorso,
   };
 }
+
 
 // Le schede predefinite di KORTEX, lette una volta sola: servono a completare quelle dell'utente.
 let cachePredefinite = null;
@@ -94,7 +104,21 @@ function predefinite() {
   } catch { /* cartella assente: nessuna predefinita */ }
   return cachePredefinite;
 }
-const leggiCampo = (k, valore, attuale) => (valore === undefined || valore === null ? attuale : valore);
+// I campi scritti a blocchetto: qui l'eredità va guardata anche dentro, voce per voce, così una
+// scheda vecchia dell'utente riceve le novità (per esempio "mostra" dentro "stato") senza perdere
+// quello che ha già scritto lei.
+const CAMPI_A_BLOCCHETTO = ['stato', 'bash'];
+const blocchetto = (x) => !!x && typeof x === 'object' && !Array.isArray(x);
+
+// Unisce la scheda predefinita di KORTEX con quella dell'utente: vince sempre l'utente, la
+// predefinita riempie solo i buchi. Nessun file viene riscritto, la fusione vive in memoria.
+function fondiSchede(pred, sua) {
+  const fuori = { ...pred, ...sua };
+  for (const k of CAMPI_A_BLOCCHETTO) {
+    if (blocchetto(pred?.[k]) && blocchetto(sua?.[k])) fuori[k] = { ...pred[k], ...sua[k] };
+  }
+  return fuori;
+}
 
 // Tutte le schede leggibili della cartella dell'utente. Quelle rotte vengono saltate
 // con una riga nel registro: una scheda sbagliata non deve fermare KORTEX.
@@ -111,15 +135,13 @@ export function caricaStrumenti(cartella = DIR_STRUMENTI) {
     if (!nome.toLowerCase().endsWith('.json')) continue;
     const percorso = path.join(cartella, nome);
     try {
-      const sua = leggiScheda(percorso);
-      // i campi che la scheda dell'utente non ha (arrivati con un aggiornamento) si prendono dalla
-      // scheda predefinita con lo stesso id, senza toccare il suo file né i valori che ha già
-      const pred = base[sua.id];
-      if (pred) {
-        const grezza = JSON.parse(fs.readFileSync(percorso, 'utf8'));
-        for (const k of Object.keys(pred.grezza)) if (grezza[k] === undefined && k in sua) sua[k] = leggiCampo(k, pred.grezza[k], sua[k]);
-      }
-      fuori.push(sua);
+      // i campi che la scheda dell'utente non ha (arrivati con un aggiornamento: lo stato di tipo
+      // comando, le regole bash, il contesto) si prendono dalla scheda predefinita con lo stesso
+      // id, senza toccare il suo file né i valori che ha già
+      const grezza = JSON.parse(fs.readFileSync(percorso, 'utf8'));
+      const id = String(grezza.id || path.basename(nome, '.json')).toLowerCase();
+      const pred = base[id];
+      fuori.push(normalizzaScheda(pred ? fondiSchede(pred.grezza, grezza) : grezza, percorso));
     } catch (e) {
       console.error(`Strumenti: salto la scheda ${nome}, non riesco a leggerla (${e.message}).`);
     }
@@ -141,12 +163,17 @@ export function strumentiPerProgetto(nomeProgetto, cartella = DIR_STRUMENTI) {
   );
 }
 
-// Lo strumento è acceso? Per ora si guarda se risponde su una porta.
-// true = acceso, false = spento, null = non c'è niente da controllare.
-// Non lancia mai eccezioni e si arrende dopo mezzo secondo.
+// Lo strumento è acceso? Due modi, secondo il campo "stato" della scheda:
+//   { "tipo": "porta",   "host": "localhost", "porta": 9876 }  -> risponde su quella porta?
+//   { "tipo": "comando", "comando": "gh auth status" }         -> quel comando esce con 0?
+// true = acceso, false = spento, null = non c'è niente da controllare (o non si può sapere).
+// Non lancia mai eccezioni.
 export function controllaStato(strumento) {
-  const st = strumento?.stato;
-  if (!st || st.tipo !== 'porta') return Promise.resolve(null);
+  return statoConDettaglio(strumento).then((r) => r.acceso).catch(() => null);
+}
+
+// La prova della porta: si arrende dopo mezzo secondo.
+function provaPorta(st) {
   return new Promise((risolvi) => {
     let fatto = false;
     const chiudi = (acceso, presa) => {
@@ -166,6 +193,99 @@ export function controllaStato(strumento) {
     presa.once('timeout', () => chiudi(false, presa));
     presa.once('error', () => chiudi(false, presa));
   });
+}
+
+// Quanto si aspetta un comando di controllo prima di ucciderlo, e quanto si tiene buono il
+// risultato: lanciare gh a ogni aggiornamento della pagina rallenterebbe tutto.
+const TEMPO_COMANDO = 3000;
+const DURATA_CACHE_STATO = 30000;
+const LUNGHEZZA_DETTAGLIO = 40;
+
+// Lancia un comando corto senza passare da una shell (niente apici, niente sorprese) e non
+// lancia mai eccezioni. Risponde con un esito in parole:
+//   'ok' = uscito con 0 · 'male' = uscito con un codice diverso da 0 · 'scaduto' = tempo finito,
+//   processo ucciso · 'manca' = il programma non c'è (o non si può eseguire).
+function lanciaBreve(comando) {
+  return new Promise((risolvi) => {
+    const pezzi = String(comando || '').trim().split(/\s+/).filter(Boolean);
+    if (!pezzi.length) return risolvi({ esito: 'manca', testo: '' });
+    let fatto = false;
+    const chiudi = (esito, testo = '') => { if (!fatto) { fatto = true; risolvi({ esito, testo }); } };
+    try {
+      execFile(pezzi[0], pezzi.slice(1), { timeout: TEMPO_COMANDO, killSignal: 'SIGKILL', maxBuffer: 256 * 1024 }, (err, stdout) => {
+        if (!err) return chiudi('ok', String(stdout || ''));
+        if (err.code === 'ENOENT' || err.code === 'EACCES') return chiudi('manca');
+        if (err.killed || err.signal) return chiudi('scaduto');
+        chiudi('male', String(stdout || ''));
+      });
+    } catch { chiudi('manca'); }
+  });
+}
+
+// La prima riga utile dell'output, ripulita e tagliata: è quella che la tessera mostra accanto
+// allo stato (per GitHub, il nome dell'account collegato).
+function primaRigaUtile(testo) {
+  const riga = String(testo || '').split('\n').map((r) => r.replace(/\s+/g, ' ').trim()).find(Boolean) || '';
+  return riga.length > LUNGHEZZA_DETTAGLIO ? riga.slice(0, LUNGHEZZA_DETTAGLIO - 1) + '…' : riga;
+}
+
+// La prova del comando: acceso se esce con 0, spento se esce con un codice diverso o se scade il
+// tempo, "non si può sapere" se il programma non è installato. Se è acceso e la scheda ha anche
+// "mostra", quel comando dà il dettaglio da far vedere; se non riesce, lo stato resta buono.
+async function provaComando(st) {
+  const r = await lanciaBreve(st.comando);
+  if (r.esito === 'manca') return { acceso: null };
+  if (r.esito !== 'ok') return { acceso: false };
+  const fuori = { acceso: true };
+  if (st.mostra) {
+    const m = await lanciaBreve(st.mostra);
+    const d = m.esito === 'ok' ? primaRigaUtile(m.testo) : '';
+    if (d) fuori.dettaglio = d;
+  }
+  return fuori;
+}
+
+// I risultati tenuti da parte: una voce per coppia comando+mostra, con l'ora in cui è arrivata.
+// In "inVolo" ci sono le prove ancora in corso, così due aggiornamenti vicini non lanciano il
+// comando due volte.
+const cacheStato = new Map();
+const inVolo = new Map();
+const chiaveStato = (st) => `${st?.comando || ''}\n${st?.mostra || ''}`;
+
+// Butta via i risultati tenuti da parte: senza argomenti svuota tutto (lo fa il tasto CONTROLLA
+// della pagina STRUMENTI), con uno strumento o una chiave svuota solo quello.
+export function svuotaCacheStato(cosa) {
+  try {
+    if (cosa === undefined || cosa === null) { cacheStato.clear(); return; }
+    cacheStato.delete(typeof cosa === 'string' ? cosa : chiaveStato(cosa.stato || cosa));
+  } catch { /* la cache non deve mai fermare KORTEX */ }
+}
+
+// Lo stato con il dettaglio da mostrare: { acceso: true|false|null, dettaglio?: 'testo' }.
+// Non lancia mai eccezioni: qualunque guaio diventa { acceso: null }.
+export function statoConDettaglio(strumento) {
+  const st = strumento?.stato;
+  try {
+    if (!st) return Promise.resolve({ acceso: null });
+    if (st.tipo === 'porta') return provaPorta(st).then((acceso) => ({ acceso }), () => ({ acceso: null }));
+    if (st.tipo !== 'comando' || !String(st.comando || '').trim()) return Promise.resolve({ acceso: null });
+    const chiave = chiaveStato(st);
+    const tenuto = cacheStato.get(chiave);
+    if (tenuto && Date.now() - tenuto.t < DURATA_CACHE_STATO) return Promise.resolve(tenuto.valore);
+    const giaInCorso = inVolo.get(chiave);
+    if (giaInCorso) return giaInCorso;
+    const prova = provaComando(st)
+      .catch(() => ({ acceso: null }))
+      .then((valore) => {
+        cacheStato.set(chiave, { t: Date.now(), valore });
+        inVolo.delete(chiave);
+        return valore;
+      });
+    inVolo.set(chiave, prova);
+    return prova;
+  } catch {
+    return Promise.resolve({ acceso: null });
+  }
 }
 
 // @blender nella richiesta: dà quello strumento alle IA. Le @ che non sono strumenti si ignorano
@@ -224,6 +344,63 @@ export function argomentiMcp(strumenti) {
     '--mcp-config', JSON.stringify({ mcpServers }),
     '--allowedTools', conMcp.map((s) => `mcp__${s.id}`).join(' '),
   ];
+}
+
+// ---------- i comandi Bash: le regole da passare a Claude ----------
+
+// I comandi che modificano davvero qualcosa, nella forma esatta che vuole --disallowedTools.
+// È QUESTO il recinto: in autonomia totale Claude parte con --dangerously-skip-permissions e
+// le regole di --allowedTools non contano più niente (una lista di permessi apre le porte, non
+// le chiude), mentre la lista dei divieti regge anche lì e vince sempre sul permesso.
+// Attenzione: il confronto è per prefisso, quindi è una rete di sicurezza contro gli errori,
+// non una gabbia: scritto in un altro modo (`git -C . commit`) lo stesso comando passerebbe.
+export const BLOCCO_BASH = [
+  'Bash(git push:*)',
+  'Bash(git commit:*)',
+  'Bash(git reset:*)',
+  'Bash(gh repo create:*)',
+  'Bash(gh repo delete:*)',
+  'Bash(gh repo edit:*)',
+  'Bash(gh pr create:*)',
+  'Bash(gh pr merge:*)',
+  'Bash(gh pr close:*)',
+  'Bash(gh issue create:*)',
+  'Bash(gh issue close:*)',
+  'Bash(gh issue delete:*)',
+  'Bash(gh issue edit:*)',
+  'Bash(gh release create:*)',
+  'Bash(gh release delete:*)',
+  'Bash(gh api -X:*)',
+  'Bash(gh api --method:*)',
+];
+
+// Gli argomenti da aggiungere alla riga di comando di Claude per i comandi Bash degli strumenti
+// (per esempio gh e git della scheda GitHub). Forma provata sulla CLI: una sola occorrenza di
+// ogni opzione, le regole separate da virgola senza spazio dopo, tutto in un unico argomento.
+//   permessi "lettura" o "conferma" -> solo le regole di lettura, più la lista dei divieti
+//   permessi "libero"               -> lettura e scrittura, nessun divieto
+// Se fra gli strumenti ce n'è anche uno solo non libero, la lista dei divieti vale per tutti:
+// le opzioni sono una per comando, non una per strumento, e il divieto vince sempre.
+// Non lancia mai eccezioni: nel dubbio restituisce un elenco vuoto.
+export function argomentiBash(strumenti) {
+  try {
+    const conBash = (strumenti || []).filter((s) => s?.bash);
+    if (!conBash.length) return [];
+    const permette = [];
+    let serveIlBlocco = false;
+    for (const s of conBash) {
+      for (const r of s.bash.lettura || []) if (!permette.includes(r)) permette.push(r);
+      if (s.permessi === 'libero') {
+        for (const r of s.bash.scrittura || []) if (!permette.includes(r)) permette.push(r);
+      } else serveIlBlocco = true;
+    }
+    const fuori = [];
+    if (permette.length) fuori.push('--allowedTools', permette.join(','));
+    if (serveIlBlocco) fuori.push('--disallowedTools', BLOCCO_BASH.join(','));
+    return fuori;
+  } catch {
+    return [];
+  }
 }
 
 // L'avviso da mostrare nell'OUTPUT quando lo strumento risulta spento.

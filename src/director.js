@@ -4,7 +4,7 @@ import { diffProgetto } from './state.js';
 import { DIR_DB, bloccoConoscenze, aggiungiSoluzione } from './database.js';
 import { bloccoPreferenze, ricorda } from './memoria.js';
 import { bloccoProfilo } from './profili.js';
-import { registraUso, trovaMenzioni, togliMenzioni, contestoStrumenti, argomentiMcp, controllaStato, avvisoSpento, cartellaStrumenti } from './strumenti.js';
+import { registraUso, trovaMenzioni, togliMenzioni, contestoStrumenti, argomentiMcp, argomentiBash, controllaStato, avvisoSpento, cartellaStrumenti } from './strumenti.js';
 
 // ---------- scelta dell'IA per un ruolo, con riserva automatica ----------
 
@@ -34,7 +34,7 @@ export function candidati(ruolo, ctx, { preferisci, evita, conStrumenti } = {}) 
   if (preferisci && lista.includes(preferisci)) lista = [preferisci, ...lista.filter((x) => x !== preferisci)];
   if (evita && lista.length > 1 && lista.includes(evita)) lista = [...lista.filter((x) => x !== evita), evita];
   // per ultimo, perché con gli strumenti questa scelta vale più di tutte le altre
-  const strumenti = conStrumenti === undefined ? (ctx.argsMcp?.length || 0) > 0 : conStrumenti;
+  const strumenti = conStrumenti === undefined ? argsDegliStrumenti(ctx).length > 0 : conStrumenti;
   return ordinaPerStrumenti(lista, ruolo, strumenti);
 }
 
@@ -46,25 +46,56 @@ function profiloPer(modalita, config) {
   return 'lettura';
 }
 
+// Le opzioni che la CLI di Claude vuole una volta sola, con tutte le regole dentro un
+// unico argomento (provato con `claude --help`: le regole si separano con la virgola o
+// con lo spazio). Ripetere l'opzione ne farebbe contare una sola.
+const OPZIONI_UNICHE = ['--allowedTools', '--disallowedTools'];
+
+// Spezza un valore come "mcp__github Bash(gh repo view:*),Bash(git log:*)" nelle sue regole.
+// Si taglia sulle virgole e sugli spazi, ma mai dentro le parentesi: "Bash(git status:*)"
+// ha uno spazio dentro e non va rotto a metà.
+function regoleDi(valore) {
+  const fuori = [];
+  let pezzo = '';
+  let dentro = 0;
+  for (const ch of String(valore ?? '')) {
+    if (ch === '(') dentro++;
+    else if (ch === ')' && dentro > 0) dentro--;
+    if (dentro === 0 && (ch === ',' || ch === ' ' || ch === '\t')) { if (pezzo) fuori.push(pezzo); pezzo = ''; continue; }
+    pezzo += ch;
+  }
+  if (pezzo) fuori.push(pezzo);
+  return fuori;
+}
+
 // Unisce gli argomenti del profilo di permessi con quelli degli strumenti esterni.
-// Alcuni profili hanno già --allowedTools: i nomi mcp__… si aggiungono a quel valore,
-// invece di ripetere l'opzione due volte (la CLI ne terrebbe conto una sola).
-function uniscoArgs(base, aggiunti) {
+// Esportata anche per le prove automatiche: è una funzione pura, non lancia niente.
+// Alcuni profili hanno già --allowedTools: i nomi mcp__… e le regole Bash degli strumenti
+// si aggiungono a quel valore, senza doppioni e senza perdere quelle che c'erano già.
+// Lo stesso vale per --disallowedTools: i divieti si sommano, non si sostituiscono mai.
+export function uniscoArgs(base, aggiunti) {
   const out = [...(base || [])];
   for (let i = 0; i < (aggiunti || []).length; i += 2) {
     const opzione = aggiunti[i];
     const valore = aggiunti[i + 1];
     const dove = out.indexOf(opzione);
-    if (opzione === '--allowedTools' && dove >= 0) out[dove + 1] = `${out[dove + 1]} ${valore}`.trim();
-    else out.push(opzione, valore);
+    if (OPZIONI_UNICHE.includes(opzione) && dove >= 0) {
+      const regole = regoleDi(out[dove + 1]);
+      for (const r of regoleDi(valore)) if (!regole.includes(r)) regole.push(r);
+      out[dove + 1] = regole.join(',');
+    } else out.push(opzione, valore);
   }
   return out;
 }
 
+// Gli argomenti portati dagli strumenti della richiesta: server MCP e regole Bash, già uniti.
+// `ctx.argsMcp` è il nome vecchio dello stesso elenco e resta accettato.
+const argsDegliStrumenti = (ctx) => ctx.argsStrumenti || ctx.argsMcp || [];
+
 // Gli strumenti esterni li sa usare solo la CLI di Claude: alle altre non si passa niente.
 const argsDiRuolo = (id, profilo, ctx) =>
   id === 'claude'
-    ? uniscoArgs(ctx.config.profili?.[profilo]?.[id] || [], ctx.argsMcp)
+    ? uniscoArgs(ctx.config.profili?.[profilo]?.[id] || [], argsDegliStrumenti(ctx))
     : ctx.config.profili?.[profilo]?.[id] || [];
 
 export async function eseguiRuolo(ruolo, prompt, ctx, opz = {}) {
@@ -119,10 +150,23 @@ export async function eseguiRuolo(ruolo, prompt, ctx, opz = {}) {
 
 // ---------- prompt dei ruoli ----------
 
+// La riga che chiude la lista dei comandi non eseguiti: la scrive l'IA, la cerca KORTEX.
+export const TITOLO_CONFERMA = 'COMANDI DA CONFERMARE';
+
+// Con i permessi "conferma" l'IA fa tutto il lavoro di lettura ma non esegue i comandi che
+// modificano: li elenca in fondo alla risposta e li confermerà l'utente, a mano.
+const bloccoConferma = (strumenti) => {
+  const l = (strumenti || []).filter((s) => s?.permessi === 'conferma');
+  if (!l.length) return '';
+  return `\nPERMESSI DI CONFERMA (${l.map((s) => s.nome).join(', ')}): NON eseguire i comandi che modificano qualcosa.
+Fai tutto il lavoro di lettura, poi, se servono comandi che modificano, elencali ALLA FINE della risposta
+in un blocco che comincia con la riga ${TITOLO_CONFERMA}, uno per riga, pronti da copiare e senza commenti.\n`;
+};
+
 const bloccoAllegati = (ctx) =>
   (ctx.allegati?.length
     ? `\nFILE ALLEGATI DALL'UTENTE (dentro la cartella del progetto: leggili o guardali se servono al compito):\n${ctx.allegati.map((a) => '- ' + a).join('\n')}\n`
-    : '') + bloccoConoscenze(ctx.conoscenze) + contestoStrumenti(ctx.strumenti) + bloccoPreferenze() + bloccoProfilo(ctx.config) + (ctx.server ? `Il server SSH del profilo è raggiungibile con: ssh ${ctx.server}\n` : '');
+    : '') + bloccoConoscenze(ctx.conoscenze) + contestoStrumenti(ctx.strumenti) + bloccoConferma(ctx.strumenti) + bloccoPreferenze() + bloccoProfilo(ctx.config) + (ctx.server ? `Il server SSH del profilo è raggiungibile con: ssh ${ctx.server}\n` : '');
 
 // Le @ degli strumenti nella richiesta: li prepara per tutti i ruoli, li toglie dal testo
 // e avvisa nell'OUTPUT se uno risulta spento. Restituisce la richiesta pulita.
@@ -132,7 +176,9 @@ async function preparaStrumenti(richiesta, ctx) {
   const cartella = ctx.cartellaStrumenti || cartellaStrumenti(ctx.config);
   const strumenti = trovaMenzioni(richiesta, cartella);
   ctx.strumenti = strumenti;
-  ctx.argsMcp = argomentiMcp(strumenti);
+  // gli argomenti dei server MCP e quelli dei comandi Bash viaggiano insieme: una sola
+  // occorrenza per opzione, con dentro le regole di tutti gli strumenti della richiesta
+  ctx.argsStrumenti = uniscoArgs(argomentiMcp(strumenti), argomentiBash(strumenti));
   if (!strumenti.length) return richiesta;
   ctx.ui.out(`◆ strumenti: ${strumenti.map((s) => s.icona + ' ' + s.nome).join(' · ')}\n`);
   // nel registro dello strumento: chi l'ha usato e per cosa (lo mostra la pagina STRUMENTI)
@@ -344,6 +390,65 @@ function estraiDomanda(testo) {
   return { testo: j.domanda.slice(0, 400), opzioni: j.opzioni.slice(0, 4).map((o) => String(o).slice(0, 120)) };
 }
 
+// ---------- i comandi che l'IA non ha eseguito ----------
+
+// Quanti comandi si tengono e quanto può essere lunga una riga: una risposta sbagliata non
+// deve riempire l'OUTPUT.
+const MAX_COMANDI = 20;
+const MAX_LUNGHEZZA_COMANDO = 300;
+
+// Toglie le decorazioni del markdown davanti a un comando: trattini, puntini, numeri, > e apici.
+function ripuliscoComando(riga) {
+  return String(riga)
+    .replace(/^[\s>*\u2022\u00b7-]+/, '')
+    .replace(/^\d+[.)]\s*/, '')
+    .replace(/^`+|`+$/g, '')
+    .replace(/^\$\s+/, '')
+    .trim();
+}
+
+// Cerca nella risposta il blocco finale "COMANDI DA CONFERMARE" e ne tira fuori i comandi,
+// uno per riga, senza eseguire niente. Restituisce { comandi, testo }, dove "testo" è la
+// risposta senza quel blocco. È una funzione pura: non lancia processi e non lancia eccezioni.
+export function estraiComandiDaConfermare(testo) {
+  const t = String(testo || '');
+  const righe = t.split('\n');
+  // si guarda dall'ultima riga: il blocco buono è quello in fondo
+  let inizio = -1;
+  for (let i = righe.length - 1; i >= 0; i--) {
+    if (new RegExp(`^[\\s#*>\`-]*${TITOLO_CONFERMA}[\\s:*\`-]*$`, 'i').test(righe[i])) { inizio = i; break; }
+  }
+  if (inizio < 0) return { comandi: [], testo: t };
+  const comandi = [];
+  for (const riga of righe.slice(inizio + 1)) {
+    if (/^\s*(```|~~~)/.test(riga)) continue; // le righe che aprono e chiudono i blocchi di codice
+    if (/^\s*#{1,6}\s/.test(riga)) break; // un titolo nuovo: il blocco dei comandi è finito
+    const pulita = ripuliscoComando(riga);
+    if (!pulita) continue;
+    if (/^[-=_]{3,}$/.test(pulita)) continue; // una riga di decorazione
+    if (comandi.includes(pulita)) continue;
+    comandi.push(pulita.slice(0, MAX_LUNGHEZZA_COMANDO));
+    if (comandi.length >= MAX_COMANDI) break;
+  }
+  return { comandi, testo: righe.slice(0, inizio).join('\n').trimEnd() };
+}
+
+// Mostra nell'OUTPUT i comandi che l'IA ha solo elencato. Vale solo quando nella richiesta c'è
+// uno strumento con permessi "conferma": KORTEX non ne esegue nemmeno uno.
+function mostraComandiDaConfermare(testo, ctx, titolo) {
+  try {
+    if (!(ctx.strumenti || []).some((s) => s?.permessi === 'conferma')) return [];
+    const { comandi } = estraiComandiDaConfermare(testo);
+    if (!comandi.length) return [];
+    if (ctx.ui?.comandi) ctx.ui.comandi(comandi, titolo);
+    else ctx.ui?.out?.(`\n▌ ${TITOLO_CONFERMA}\n${comandi.map((x) => '  △ ' + x).join('\n')}\n`);
+    ctx.ui?.log?.(`△ ${comandi.length} comandi da confermare: KORTEX non ne ha eseguito nessuno`, { tipo: 'avviso' });
+    return comandi;
+  } catch {
+    return []; // i comandi da confermare non devono mai fermare il lavoro
+  }
+}
+
 function leggiEsito(testo) {
   const m = (testo || '').match(/ESITO:\s*(OK|CORREGGI)/i);
   const note = (testo || '').replace(/ESITO:\s*(OK|CORREGGI)/i, '').trim();
@@ -458,6 +563,8 @@ export async function eseguiRichiesta({ richiesta, ctx }) {
       segna(i, 'errore');
       return;
     }
+    // i comandi che modificano, con i permessi "conferma", l'IA li ha solo elencati
+    mostraComandiDaConfermare(es.testo, ctx, c.titolo);
 
     let rev = { esito: 'OK', note: '(revisione disattivata)', ia: null };
     if (config.usaRevisore !== false) rev = await revisiona(c, es, ctx, i, scrivi, insieme);
@@ -578,6 +685,7 @@ export async function chatDiretta({ id, messaggio, ctx, storia }) {
   if (r.ok) {
     if (r.sessione) stato.salvaSessione(id, chiaveChat, r.sessione);
     if (r.costo) ui.costo(r.costo);
+    mostraComandiDaConfermare(r.testo, ctx);
   } else {
     if (r.limitato) disponibili[id].limitato = true;
     ui.log(`✗ ${cfg.nome}: ${r.errore}${r.limitato ? ' — limite raggiunto: scegli un\'altra IA con /chat' : ''}`, { ia: id, ruolo: 'chat', tipo: 'errore' });

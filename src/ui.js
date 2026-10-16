@@ -9,7 +9,7 @@ import { spawn } from 'node:child_process';
 import { eseguiRichiesta, chatDiretta, catalogaCon, aggiornaMemoria } from './director.js';
 import { applicaTema, TEMI } from './temi.js';
 import { preferenze, ricorda, dimentica, percorsoPreferenze } from './memoria.js';
-import { caricaStrumenti, controllaStato, avvisoSpento, cartellaStrumenti, registraUso, usiStrumento, problemiScheda, avviaApp } from './strumenti.js';
+import { caricaStrumenti, statoConDettaglio, svuotaCacheStato, avvisoSpento, cartellaStrumenti, registraUso, usiStrumento, problemiScheda, avviaApp } from './strumenti.js';
 import { campiona, hex, rgbHex } from './colori.js';
 import * as db from './database.js';
 import { apriStato, righeFile, diffColorato } from './state.js';
@@ -221,10 +221,12 @@ function App({ config, disponibili, cwd: cwdIniziale, versione, suoni }) {
       const lista = caricaStrumenti(cartellaStrumenti(config));
       const pc = problemiCache.current;
       if (forza || Date.now() - pc.t > 30000) { pc.valori = Object.fromEntries(lista.map((x) => [x.id, problemiScheda(x)])); pc.t = Date.now(); }
-      const stati = await Promise.all(lista.map((x) => controllaStato(x).catch(() => null)));
+      // lo stato arriva con il suo dettaglio: per GitHub è l'account collegato (campo "mostra")
+      const stati = await Promise.all(lista.map((x) => statoConDettaglio(x).catch(() => ({ acceso: null }))));
       const completa = lista.map((x, i) => ({
         ...x,
-        acceso: stati[i],
+        acceso: stati[i]?.acceso ?? null,
+        dettaglio: stati[i]?.dettaglio || '',
         problemi: pc.valori[x.id] || [],
         usi: usiStrumento(x.id),
         altroProgetto: x.progetti.length > 0 && !x.progetti.some((q) => String(q).toLowerCase() === nomeProgetto.toLowerCase()),
@@ -304,6 +306,16 @@ function App({ config, disponibili, cwd: cwdIniziale, versione, suoni }) {
       bolla,
       bollaFine,
       titolo: (t) => scrivi(`\n▌ ${t}\n`),
+      // I comandi che l'IA ha solo elencato (strumenti con permessi "conferma"): in evidenza
+      // nell'OUTPUT, uno per riga, pronti da copiare. KORTEX non ne esegue nemmeno uno.
+      comandi: (lista, titolo) => {
+        const l = (lista || []).map((x) => String(x).trim()).filter(Boolean);
+        if (!l.length) return;
+        scrivi(`\n▌ COMANDI DA CONFERMARE${titolo ? ' — ' + titolo : ''}\n`);
+        scrivi('△ nessuno di questi è stato eseguito: controllali e lanciali tu\n');
+        for (const c of l) scrivi(`  △ ${c}\n`);
+        ui.current?.notifica(`${I.avviso} ${l.length} ${l.length === 1 ? 'comando' : 'comandi'} da confermare`, 'avviso');
+      },
       log: (m, meta = {}) => { if (process.env.KORTEX_DEBUG_LOG) { try { fs.appendFileSync(process.env.KORTEX_DEBUG_LOG, `${ora()} ${meta.ia || '-'} ${meta.ruolo || '-'} ${m}\n`); } catch { /* */ } } setLog((p) => [...p.slice(-1500), { ora: ora(), testo: String(m), ia: meta.ia || null, ruolo: meta.ruolo || '', tipo: meta.tipo || tipoDa(String(m)) }]); },
       ruolo: (r, s, ia) => setRuoli((p) => ({ ...p, [r]: { stato: s, ia: ia ?? p[r]?.ia ?? null } })),
       costo: (x) => setCosto((v) => v + x),
@@ -703,17 +715,19 @@ function App({ config, disponibili, cwd: cwdIniziale, versione, suoni }) {
         const lista = caricaStrumenti(cartella);
         if (!lista.length) { scrivi(`\nNessuno strumento. Le schede stanno in ${cartella}: un file .json per ogni strumento.\n`); return; }
         if (!arg) {
-          Promise.all(lista.map((s) => controllaStato(s).catch(() => null))).then((stati) => {
-            scrivi('\n' + lista.map((s, i) => `  ${s.icona} ${riempiA(s.nome, 12)} @${riempiA(s.id, 10)} ${riempiA(s.tasto ? 'tasto ' + s.tasto : '', 8)} ${segno(stati[i])}`).join('\n')
+          Promise.all(lista.map((s) => statoConDettaglio(s).catch(() => ({ acceso: null })))).then((stati) => {
+            scrivi('\n' + lista.map((s, i) => `  ${s.icona} ${riempiA(s.nome, 12)} @${riempiA(s.id, 10)} ${riempiA(s.tasto ? 'tasto ' + s.tasto : '', 8)} ${segno(stati[i]?.acceso)}`).join('\n')
               + `\nSchede: ${cartella}\n/strumento id per la scheda completa · @id nella richiesta per dare lo strumento alle IA\n`);
           });
           return;
         }
         const s = lista.find((x) => x.id === arg.toLowerCase());
         if (!s) { scrivi(`\n✗ strumento non trovato: ${arg}\n`); return; }
-        controllaStato(s).catch(() => null).then((st) => {
+        statoConDettaglio(s).catch(() => ({ acceso: null })).then((r) => {
+          const st = r?.acceso ?? null;
           scrivi(`\n${s.icona} ${s.nome}  @${s.id}${s.tasto ? '  tasto ' + s.tasto : ''}\n`
             + `  stato: ${segno(st)}${s.stato?.tipo === 'porta' ? `  (porta ${s.stato.porta} su ${s.stato.host || 'localhost'})` : ''}\n`
+            + (s.stato?.mostra ? `  account: ${r?.dettaglio || 'non rilevato'}\n` : '')
             + (st === false ? `  ${avvisoSpento(s)}\n` : '')
             + `  permessi: ${s.permessi}\n`
             + (s.descrizione ? `  ${s.descrizione}\n` : '')
@@ -1023,7 +1037,8 @@ function App({ config, disponibili, cwd: cwdIniziale, versione, suoni }) {
     strumento: (i) => { if (strumSel === i) usaStrumento(i); else setStrumSel(i); },
     usaStrumento: (i) => usaStrumento(i),
     avviaStrumento: (i) => avviaStrumento(i),
-    controllaStrumenti: () => { aggiornaStrumenti(true); ui.current.notifica(`${I.strumenti} ricontrollo gli strumenti`, 'info'); },
+    // CONTROLLA: butta via i risultati tenuti da parte e rilancia i controlli da zero
+    controllaStrumenti: () => { svuotaCacheStato(); aggiornaStrumenti(true); ui.current.notifica(`${I.strumenti} ricontrollo gli strumenti`, 'info'); },
     dbVoce: (i) => { if (dbSel === i) { const v = datiDb().voci[i]; if (v) { setInputIA(`@${v.id} `); setDbQuery(''); vaiAPagina('lavoro'); setFuoco('ia'); } } else setDbSel(i); },
     parametro: (i, cosa, ev) => {
       setSelezionato(i);

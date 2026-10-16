@@ -94,6 +94,22 @@ LA PAGINA STRUMENTI (8, o /strumenti, o Alt+lettera da qualunque pagina):
 Se lo strumento risulta spento, KORTEX lo scrive nell'OUTPUT prima di partire: per Blender basta aprirlo, il server parte da solo.
 La prima volta KORTEX copia le schede che porta con sé; le tue non vengono mai sovrascritte dagli aggiornamenti.
 
+# GITHUB
+GitHub è uno strumento come gli altri: la scheda si chiama github e serve per repository, issue, pull request e release. Non usa nessun server MCP: le IA lavorano con i programmi gh e git che hai già sul computer.
+Dentro KORTEX non c'è niente da accendere: la scheda arriva insieme a KORTEX e la prima volta viene copiata in ~/.config/kortex/strumenti. L'unica cosa che serve è il programma gh già collegato al tuo account: il collegamento lo fai una volta sola in un terminale (gh auth login), poi GitHub compare nella pagina STRUMENTI e risponde a @github.
+- @github dentro la richiesta dà GitHub alla squadra, come @blender: la parola @ sparisce dal testo e il contesto di GitHub entra nel prompt di tutti i ruoli
+- Alt+G da qualunque pagina apre la tessera di GitHub nella pagina STRUMENTI; da lì INVIO (o il secondo clic) porta @github nella riga delle IA di LAVORO
+- /strumento github mostra la scheda intera e il percorso del file, così la puoi correggere
+- Lo stato (■ acceso, □ spento) dice se il programma gh del computer è già collegato: KORTEX lo chiede a gh auth status. Se è spento, l'accesso lo fai TU in un terminale: KORTEX non salva, non chiede e non mostra MAI nessun token o altro segreto.
+- Nella tessera la riga "account" dice con quale utente di GitHub sei collegato (lo chiede a gh, non lo indovina).
+I TRE PERMESSI (campo "permessi" nella scheda):
+- lettura: le IA possono solo guardare. Nel prompt ricevono anche la riga "su GitHub puoi solo LEGGERE", quindi non ti propongono nemmeno i comandi che cambierebbero qualcosa: leggono, raccontano, e basta.
+- conferma: hanno gli stessi limiti della lettura (i comandi che modificano restano vietati), ma alla fine ti scrivono l'elenco di quelli che servirebbero, così decidi tu. È così appena installato.
+- libero: ricevono anche i comandi di scrittura e nessun divieto, quindi cambiano le cose su GitHub da sole, senza fermarsi a chiedere.
+- Il permesso si cambia a mano nel file della scheda, nel campo "permessi": /strumento github dice dove sta il file. Se nella stessa richiesta ci sono più strumenti e anche uno solo non è libero, il divieto vale per tutti.
+Con la conferma le IA fanno tutto il lavoro di lettura, ma i comandi che modificano qualcosa (git push, git commit, creare o chiudere issue e pull request, release) non li eseguono: li raccolgono in un blocco COMANDI DA CONFERMARE che KORTEX ti MOSTRA nell'OUTPUT, uno per riga, pronti da copiare. Nessuno di quei comandi viene eseguito: decidi tu, e li lanci tu. Con la sola lettura quegli stessi comandi restano vietati, ma non c'è nessun elenco da confermare: il blocco lo chiede e lo mostra solo la conferma.
+Il blocco si riconosce subito: ha il titolo COMANDI DA CONFERMARE, una riga che avvisa che nessuno è stato eseguito, poi i comandi uno per riga; in più arriva una notifica che dice quanti sono.
+
 # I PUNTI DI RIPRISTINO
 Prima e dopo ogni richiesta KORTEX fotografa i file del progetto in un archivio nascosto (.kortex/istantanee.git), separato dal tuo git: la tua storia non viene toccata.
 - /ripristina mostra gli ultimi punti; /ripristina ID riporta tutti i file a quel momento, togliendo anche quelli creati dopo
@@ -144,6 +160,7 @@ Il risveglio: il battito del cuore, le onde cerebrali, il cervello a circuiti ch
 - CTRL+F: filtro del registro
 - CTRL+K: mentre la squadra lavora, salta l'IA che sta lavorando adesso e passa alla riserva (utile se la vedi ferma da troppo)
 - CTRL+P: la TAVOLOZZA dei comandi: scrivi due lettere e trovi pagine, schede, temi, profili, mappature, progetti, chat, comandi e voci del database
+- ALT+lettera: apre nella pagina STRUMENTI la tessera dello strumento con quel tasto (ALT+G per GitHub, ALT+B per Blender)
 - CTRL+R: nella scheda DIFF, riporta il file scelto com'era
 - CTRL+C: ferma il comando della shell; se non ce n'è nessuno, esce
 
@@ -170,7 +187,7 @@ Si scrivono nella barra in basso, iniziano con la barra /.
 - /chat nuova [titolo] · /chat apri N: le chat del progetto
 - /ripristina [ID]: punti di ripristino
 - /db: tutti i comandi del database (/db scansiona cataloga i file arrivati da soli)
-- /strumento · /strumento blender: gli strumenti esterni e il loro stato (nella richiesta: @blender)
+- /strumento · /strumento blender · /strumento github: gli strumenti esterni e il loro stato (nella richiesta: @blender, @github)
 - /strumenti: apre la pagina STRUMENTI
 - /tema neon | fuoco | ghiaccio | matrix | tokyonight | dracula | synthwave | vaporwave: colori di tutto KORTEX
 - /profilo programmatore | minecraft | studio | creativo: prepara KORTEX per quel tipo di lavoro (/profilo da solo li elenca)
@@ -235,7 +252,7 @@ Ogni progetto ha una cartella nascosta .kortex con il diario (STATO.md), le conv
 
 # LE PROVE AUTOMATICHE
 - KORTEX ha delle prove che controllano da sole le parti più delicate del motore: la lettura del JSON dentro le risposte delle IA (blocchi di codice marcati json, graffe scritte dentro le virgolette, esempi messi prima del risultato vero), il riconoscimento del limite di abbonamento (per non passare alla riserva senza motivo) e gli strumenti (le menzioni @, gli argomenti MCP passati a Claude, i percorsi scritti con la ~, la copia delle schede che non sovrascrive mai le tue, e la scelta dell'IA quando c'è uno strumento, cioè Claude per primo con le altre di riserva).
-- Si lanciano da un terminale normale, dentro la cartella del progetto KORTEX (non dell'installazione): npm test. Se finisce con "fail 0" va tutto bene.
+- Si lanciano da un terminale normale, dentro la cartella del progetto KORTEX (non dell'installazione): npm test. In tutto sono 43 prove, di cui 28 sugli strumenti (scheda di GitHub, stato chiesto a un comando, memoria dello stato per 30 secondi, i tre permessi, unione con i permessi dell'operatore, menzione @github, lettura del blocco COMANDI DA CONFERMARE). Se finisce con "fail 0" va tutto bene.
 
 # PROBLEMI COMUNI
 - Un'IA ha il pallino vuoto: non è installata o non è collegata. Lancia il suo comando da solo (claude, codex, gemini) e fai il login.

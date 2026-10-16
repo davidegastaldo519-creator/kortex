@@ -1,5 +1,13 @@
 # Le novità di KORTEX
 
+## 2.5.0
+- **Lo strumento GitHub**: la squadra sa leggere repository, issue, pull request e azioni. Usa **gh** e **git** già collegati sul tuo computer: nessun token nei file.
+- **Lo chiami con @github**: scrivi **@github** nella richiesta, oppure premi **Alt+G** da qualunque pagina per aprire la sua scheda nella pagina STRUMENTI.
+- **Tre livelli di permesso**: con **lettura** le IA solo guardano, con **conferma** elencano i comandi che cambiano, con **libero** scrivono. Le regole si sommano al profilo.
+- **Il blocco COMANDI DA CONFERMARE**: in modalità conferma l'IA scrive in fondo i comandi che servono. KORTEX te li mostra nell'OUTPUT, puliti e senza doppioni, e non ne esegue nessuno.
+- **Lo stato letto con un comando**: la tessera diventa verde se è acceso e la scheda mostra il tuo account GitHub. Attesa massima 3 secondi, risposta tenuta 30 secondi.
+- **Nuove prove automatiche**: **npm test** controlla la scheda github, lo stato con comando, la cache, i tre livelli di permesso, la menzione @github e il blocco dei comandi.
+
 ## 2.4.0
 - **Pagina 8 STRUMENTI**: a sinistra una tessera per ogni strumento (stato colorato, usi di oggi, ultima azione, tasto Alt), a destra la scheda completa con i pulsanti USA, AVVIA e CONTROLLA, cosa sanno le IA e le ultime azioni.
 - **Alt+lettera da qualunque pagina** apre lo strumento con quel tasto (Alt+B per Blender). Scrivi una frase nella pagina STRUMENTI e INVIO: parte subito una richiesta con quello strumento.

@@ -1,0 +1,44 @@
+{
+  "id": "github",
+  "nome": "GitHub",
+  "icona": "G",
+  "tasto": "g",
+  "descrizione": "repository, issue, pull request e release, comandati con gh e git",
+  "permessi": "conferma",
+  "stato": {
+    "tipo": "comando",
+    "comando": "gh auth status",
+    "mostra": "gh api user -q .login"
+  },
+  "avviso": "manca l'accesso a GitHub: fallo tu in un terminale, KORTEX non tocca l'accesso",
+  "avvia": "xdg-open https://github.com",
+  "bash": {
+    "lettura": [
+      "Bash(gh repo view:*)",
+      "Bash(gh repo list:*)",
+      "Bash(gh issue list:*)",
+      "Bash(gh issue view:*)",
+      "Bash(gh pr list:*)",
+      "Bash(gh pr view:*)",
+      "Bash(gh pr diff:*)",
+      "Bash(gh pr checks:*)",
+      "Bash(gh run list:*)",
+      "Bash(gh run view:*)",
+      "Bash(gh release list:*)",
+      "Bash(gh release view:*)",
+      "Bash(gh api:*)",
+      "Bash(git status:*)",
+      "Bash(git log:*)",
+      "Bash(git diff:*)",
+      "Bash(git remote:*)",
+      "Bash(git branch:*)",
+      "Bash(git show:*)"
+    ],
+    "scrittura": [
+      "Bash(gh:*)",
+      "Bash(git:*)"
+    ]
+  },
+  "progetti": [],
+  "contesto": "GitHub si comanda con i programmi gh e git dallo strumento Bash: non c'è nessun server MCP, i comandi si lanciano e si legge l'output.\nL'account collegato si ricava con `gh api user -q .login`: non indovinarlo e non scriverlo a memoria, chiedilo a gh.\nNon usare MAI `gh auth` (né login, né logout, né token, né refresh): l'accesso è già fatto e un comando di accesso lo romperebbe.\nNon stampare MAI token, chiavi o altri segreti, nemmeno un pezzo e nemmeno dentro un esempio: se un output ne contiene uno, togli la riga.\nCon permessi di sola lettura o di conferma non eseguire i comandi che modificano (git push, git commit, git reset, creare o chiudere issue e pull request, release, gh api con -X diverso da GET): fai tutto il lavoro di lettura e poi elenca quei comandi alla fine della risposta, in un blocco che inizia con la riga COMANDI DA CONFERMARE, uno per riga, pronti da copiare."
+}
