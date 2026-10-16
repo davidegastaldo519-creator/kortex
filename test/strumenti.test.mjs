@@ -431,7 +431,10 @@ test('una scheda utente eredita stato comando, bash e contesto dalla predefinita
     assert.equal(s.stato.mostra, 'gh api user -q .login');
     assert.equal(s.tasto, 'g');
     assert.equal(s.permessi, 'conferma');
-    assert.ok(s.bash.lettura.includes('Bash(gh api:*)'));
+    // le regole bash arrivano dalla predefinita di oggi, che è quella stretta:
+    // "gh api" non c'è più (con --method scrive) e i comandi git sono solo quelli che leggono
+    assert.ok(s.bash.lettura.includes('Bash(gh repo view:*)'));
+    assert.equal(s.bash.lettura.includes('Bash(gh api:*)'), false);
     assert.ok(s.contesto.includes('COMANDI DA CONFERMARE'));
     // e il suo file non è stato riscritto
     assert.equal(fs.readFileSync(path.join(mia, 'github.json'), 'utf8'), suo);
@@ -556,4 +559,339 @@ test('estraiComandiDaConfermare legge i comandi e li ripulisce', () => {
 
   // un blocco senza comandi dentro torna vuoto, e il titolo resta un titolo
   assert.deepEqual(estraiComandiDaConfermare(`testo\n${TITOLO_CONFERMA}\n\n## Fine\ngh pr list`).comandi, []);
+});
+
+// ---------- la lista dei permessi vera: riga di comando ripulita, permesso più stretto,
+// ---------- solo Claude e eredità della lista di lettura nuova ----------
+import { execFileSync } from 'node:child_process';
+import { pathToFileURL } from 'node:url';
+import {
+  permessoBash,
+  bashStretto,
+  regoleLetturaStrumenti,
+  spezzaRegole,
+  ripulisciArgsClaude,
+  messaggioServeClaude,
+  DIVIETO_AUTH,
+  BASH_GITHUB,
+  BASH_GITHUB_2_5_0,
+} from '../src/strumenti.js';
+
+// I profili di permessi veri, letti da config.default.json: se cambiano, le prove se ne accorgono.
+const CONFIG_VERO = JSON.parse(fs.readFileSync(path.join(QUI, '..', 'config.default.json'), 'utf8'));
+const profiloVero = (nome) => CONFIG_VERO.profili[nome].claude;
+
+// La scheda github vera con il permesso che serve alla prova (la scheda su disco non si tocca).
+const ghCon = (permessi) => ({ ...strumentoPerId('github', SCHEDE), permessi });
+// Uno strumento finto con una regola riconoscibile: serve a provare che le regole di chi non è
+// nella richiesta non finiscono nella lista dei permessi.
+const strumentoFinto = (permessi = 'lettura') => ({
+  id: 'finto',
+  nome: 'Finto',
+  permessi,
+  bash: { lettura: ['Bash(echo soloilfinto:*)'], scrittura: ['Bash(echo:*)'] },
+});
+
+// La riga di comando di Claude come la costruisce `argsDiRuolo` in src/director.js:
+// profilo del ruolo + argomenti degli strumenti, e poi la ripulitura.
+function argsClaudeCome(profilo, strumenti) {
+  const dagliStrumenti = uniscoArgs(argomentiMcp(strumenti), argomentiBash(strumenti));
+  return ripulisciArgsClaude(uniscoArgs(profilo, dagliStrumenti), strumenti);
+}
+// Il valore che sta subito dopo un'opzione (la posizione vera, non una ricerca nel testo).
+const valoreDi = (args, opzione) => {
+  const i = args.indexOf(opzione);
+  return i < 0 ? null : args[i + 1];
+};
+const quante = (args, voce) => args.filter((a) => a === voce).length;
+
+// 1) In lettura e in conferma: niente salto dei permessi, niente "Bash" nuda fra i permessi,
+// e i ruoli che scrivono conservano --permission-mode acceptEdits.
+test('in lettura e conferma la riga di Claude perde il salto dei permessi e la Bash nuda', () => {
+  for (const permessi of ['lettura', 'conferma']) {
+    const strumenti = [ghCon(permessi)];
+    for (const profilo of ['prudente', 'totale', 'operatore']) {
+      const args = argsClaudeCome(profiloVero(profilo), strumenti);
+      const dove = `${profilo}/${permessi}`;
+      // il salto dei permessi non ci deve essere: è lui che spegne il rifiuto d'ufficio
+      assert.equal(args.includes('--dangerously-skip-permissions'), false, `salto permessi in ${dove}`);
+      // la voce Bash nuda darebbe tutto lo strumento Bash: non ci deve essere
+      const regole = spezzaRegole(valoreDi(args, '--allowedTools'));
+      assert.equal(regole.includes('Bash'), false, `Bash nuda in ${dove}`);
+      assert.ok(regole.length > 0, `in ${dove} le regole di lettura ci devono essere`);
+      // i ruoli che scrivono devono poter ancora modificare i file del progetto
+      assert.equal(quante(args, '--permission-mode'), 1, `--permission-mode una volta sola in ${dove}`);
+      assert.equal(args[args.indexOf('--permission-mode') + 1], 'acceptEdits', `acceptEdits in ${dove}`);
+      // e il divieto su gh auth c'è sempre
+      assert.ok(spezzaRegole(valoreDi(args, '--disallowedTools')).includes(DIVIETO_AUTH), `gh auth in ${dove}`);
+    }
+    // il revisore (profilo "verifica") non scrive: nessun --permission-mode aggiunto,
+    // ma la Bash nuda che aveva nel profilo sparisce comunque
+    const verifica = argsClaudeCome(profiloVero('verifica'), strumenti);
+    assert.deepEqual(profiloVero('verifica'), ['--allowedTools', 'Bash']);
+    assert.equal(spezzaRegole(valoreDi(verifica, '--allowedTools')).includes('Bash'), false);
+    assert.equal(verifica.includes('--permission-mode'), false);
+  }
+});
+
+// 2) --allowedTools ha esattamente le regole di lettura degli strumenti della richiesta
+// più le loro voci mcp__: niente di più e niente di meno (confronto d'insieme).
+test('in lettura --allowedTools ha solo le regole di lettura degli strumenti della richiesta', () => {
+  const gh = ghCon('lettura');
+  const blender = strumentoPerId('blender', SCHEDE);
+  const args = argsClaudeCome(profiloVero('operatore'), [gh, blender]);
+  const regole = spezzaRegole(valoreDi(args, '--allowedTools'));
+
+  // quello che la richiesta porta davvero: le regole di lettura della scheda più mcp__blender
+  const atteso = [...gh.bash.lettura, 'mcp__blender'];
+  assert.deepEqual(regole, atteso);
+  assert.deepEqual(regole, regoleLetturaStrumenti([gh, blender]));
+  // una sola occorrenza dell'opzione, e nessuna regola ripetuta
+  assert.equal(quante(args, '--allowedTools'), 1);
+  assert.equal(new Set(regole).size, regole.length);
+  // niente regole di scrittura e niente Bash nuda
+  assert.equal(regole.includes('Bash(gh:*)'), false);
+  assert.equal(regole.includes('Bash(git:*)'), false);
+  assert.equal(regole.includes('Bash'), false);
+
+  // le regole di uno strumento che non è nella richiesta non ci entrano
+  const finto = strumentoFinto();
+  assert.ok(regoleLetturaStrumenti([finto]).includes('Bash(echo soloilfinto:*)'));
+  assert.equal(regole.includes('Bash(echo soloilfinto:*)'), false);
+
+  // con il solo github (nessun server MCP) non compare nessuna voce mcp__
+  const soloGh = spezzaRegole(valoreDi(argsClaudeCome(profiloVero('prudente'), [gh]), '--allowedTools'));
+  assert.deepEqual(soloGh, gh.bash.lettura);
+  assert.equal(soloGh.some((r) => r.startsWith('mcp__')), false);
+});
+
+// 3) Due strumenti con permessi diversi nella stessa richiesta: vince il più stretto,
+// in qualunque ordine siano elencati.
+test('con due strumenti vince il permesso più stretto, in qualunque ordine', () => {
+  const coppie = [
+    [['lettura', 'libero'], 'lettura'],
+    [['libero', 'lettura'], 'lettura'],
+    [['conferma', 'libero'], 'conferma'],
+    [['libero', 'conferma'], 'conferma'],
+    [['lettura', 'conferma'], 'lettura'],
+    [['conferma', 'lettura'], 'lettura'],
+  ];
+  for (const [permessi, atteso] of coppie) {
+    const strumenti = [ghCon(permessi[0]), { ...strumentoFinto(permessi[1]), id: 'finto' }];
+    const r = permessoBash(strumenti);
+    assert.equal(r.permesso, atteso, `${permessi.join(' + ')} deve dare ${atteso}`);
+    assert.equal(r.strumenti.length, 2);
+    assert.equal(bashStretto(strumenti), atteso !== 'libero');
+  }
+  // un permesso scritto in un modo che non conosciamo vale conferma, come la riserva delle schede
+  assert.equal(permessoBash([ghCon('inventato'), strumentoFinto('libero')]).permesso, 'conferma');
+  // due strumenti liberi restano liberi, e senza comandi bash non c'è nessun permesso
+  assert.equal(permessoBash([ghCon('libero'), strumentoFinto('libero')]).permesso, 'libero');
+  assert.deepEqual(permessoBash([strumentoPerId('blender', SCHEDE)]), { strumenti: [], permesso: null });
+  assert.equal(bashStretto([]), false);
+});
+
+// 4) Con il permesso libero la riga non si ripulisce, ma il divieto su gh auth c'è comunque
+// e i divieti che c'erano già non si perdono.
+test('con il permesso libero resta il divieto su gh auth senza perdere gli altri', () => {
+  const gh = ghCon('libero');
+  // il profilo dell'autonomia totale: qui il salto dei permessi resta, perché l'ha scelto l'utente
+  const args = argsClaudeCome(profiloVero('totale'), [gh]);
+  assert.ok(args.includes('--dangerously-skip-permissions'));
+  assert.equal(quante(args, '--disallowedTools'), 1);
+  assert.deepEqual(spezzaRegole(valoreDi(args, '--disallowedTools')), [DIVIETO_AUTH]);
+  // le regole di scrittura ci sono: con "libero" la lista dei permessi non viene riscritta
+  const regole = spezzaRegole(valoreDi(args, '--allowedTools'));
+  assert.ok(regole.includes('Bash(gh:*)'));
+  assert.ok(regole.includes('Bash(git:*)'));
+
+  // partendo da divieti che c'erano già, nessuno si perde e gh auth si aggiunge in fondo
+  const conDivieti = ripulisciArgsClaude(
+    ['--dangerously-skip-permissions', '--disallowedTools', BLOCCO_BASH.join(',')],
+    [gh]
+  );
+  assert.deepEqual(spezzaRegole(valoreDi(conDivieti, '--disallowedTools')), [...BLOCCO_BASH, DIVIETO_AUTH]);
+  assert.equal(quante(conDivieti, '--disallowedTools'), 1);
+
+  // con uno strumento libero e uno in conferma vale il più stretto: tornano tutti i divieti
+  const misti = argsClaudeCome(profiloVero('operatore'), [gh, strumentoFinto('conferma')]);
+  assert.deepEqual(spezzaRegole(valoreDi(misti, '--disallowedTools')), [...BLOCCO_BASH, DIVIETO_AUTH]);
+  assert.equal(misti.includes('--dangerously-skip-permissions'), false);
+
+  // e il divieto non si ripete se c'era già
+  const giaDentro = ripulisciArgsClaude(['--disallowedTools', DIVIETO_AUTH], [gh]);
+  assert.deepEqual(spezzaRegole(valoreDi(giaDentro, '--disallowedTools')), [DIVIETO_AUTH]);
+});
+
+// 5) Con uno strumento Bash in lettura o conferma i ruoli che toccano lo strumento hanno
+// un solo candidato: Claude. Nessuna riserva su codex o sulle altre IA.
+function ctxConBash(permessi, { claudeOk = true, claudeLimitato = false } = {}) {
+  const ctx = ctxFinto({ claudeOk, claudeLimitato, strumenti: true });
+  ctx.strumenti = [ghCon(permessi)];
+  return ctx;
+}
+
+test('con uno strumento bash stretto i ruoli dello strumento hanno solo claude', () => {
+  for (const permessi of ['lettura', 'conferma']) {
+    const ctx = ctxConBash(permessi);
+    for (const ruolo of ['esecutore', 'operatore', 'revisore']) {
+      assert.deepEqual(candidati(ruolo, ctx), ['claude'], `${ruolo} con ${permessi}`);
+    }
+    // nemmeno "evita" o "preferisci" possono tirare dentro un'altra IA
+    assert.deepEqual(candidati('revisore', ctx, { evita: 'claude' }), ['claude']);
+    assert.deepEqual(candidati('revisore', ctx, { preferisci: 'codex' }), ['claude']);
+    // chi legge soltanto non cambia: il direttore e il pianificatore restano come sempre
+    assert.deepEqual(candidati('pianificatore', ctx), ['claude', 'codex', 'gemini', 'ollama']);
+
+    // senza Claude il compito si ferma: nessun candidato, nessun ripiego
+    for (const senza of [ctxConBash(permessi, { claudeLimitato: true }), ctxConBash(permessi, { claudeOk: false })]) {
+      for (const ruolo of ['esecutore', 'operatore', 'revisore']) {
+        assert.deepEqual(candidati(ruolo, senza), [], `${ruolo} senza claude con ${permessi}`);
+      }
+    }
+  }
+
+  // con il permesso libero, invece, le riserve tornano: Claude davanti e le altre dietro
+  const libero = ctxConBash('libero');
+  assert.deepEqual(candidati('revisore', libero), ['claude', 'codex', 'gemini', 'ollama']);
+  assert.deepEqual(candidati('esecutore', libero), ['claude', 'codex']);
+  assert.deepEqual(candidati('esecutore', ctxConBash('libero', { claudeOk: false })), ['codex']);
+});
+
+// Il messaggio di stop: quello di src/strumenti.js, nomina lo strumento che ha imposto la regola.
+test('il messaggio di stop nomina lo strumento che richiede Claude', () => {
+  const gh = ghCon('lettura');
+  assert.equal(
+    messaggioServeClaude([gh]),
+    'GitHub in lettura/conferma richiede Claude, riprova quando torna disponibile'
+  );
+  // con due strumenti li nomina tutti e due, e senza nomi usa la frase di riserva
+  assert.equal(
+    messaggioServeClaude([gh, strumentoFinto()]),
+    'GitHub, Finto in lettura/conferma richiede Claude, riprova quando torna disponibile'
+  );
+  assert.equal(
+    messaggioServeClaude([]),
+    'lo strumento in lettura/conferma richiede Claude, riprova quando torna disponibile'
+  );
+  assert.equal(messaggioServeClaude(null), messaggioServeClaude([]));
+});
+
+// La chat diretta con una IA diversa da Claude si ferma con lo stesso messaggio.
+// La chat vera si prova in un processo a parte con una HOME finta, così il registro degli usi
+// e la configurazione dell'utente non vengono toccati; con "claude" non si prova, perché
+// lancerebbe davvero la CLI.
+test('la chat diretta con un altra IA si ferma e dice che serve Claude', () => {
+  const base = fs.mkdtempSync(path.join(os.tmpdir(), 'kortex-chat-'));
+  try {
+    const schede = path.join(base, 'strumenti');
+    fs.mkdirSync(schede);
+    // la scheda vera, ma con uno stato che non lancia gh: il permesso lo decide la prova
+    const scheda = (permessi) => fs.writeFileSync(
+      path.join(schede, 'github.json'),
+      JSON.stringify({ id: 'github', nome: 'GitHub', permessi, stato: { tipo: 'comando', comando: 'true' } })
+    );
+    const figlio = path.join(base, 'prova-chat.mjs');
+    const director = pathToFileURL(path.join(QUI, '..', 'src', 'director.js')).href;
+    fs.writeFileSync(figlio, [
+      `import { chatDiretta } from ${JSON.stringify(director)};`,
+      'const [cartella, id] = process.argv.slice(2);',
+      'const ctx = {',
+      "  config: { ia: { claude: {}, codex: {}, gemini: {}, ollama: {} }, autonomia: 'prudente', profili: {}, ruoli: {} },",
+      '  disponibili: { claude: { ok: true }, codex: { ok: true }, gemini: { ok: true }, ollama: { ok: true } },',
+      '  ui: { out() {}, log() {} },',
+      '  stato: { sessione: () => null, salvaSessione() {} },',
+      '  cwd: process.cwd(),',
+      '  cartellaStrumenti: cartella,',
+      '};',
+      "const r = await chatDiretta({ id, messaggio: 'guarda le PR con @github', ctx, storia: [] });",
+      'process.stdout.write(JSON.stringify({ ok: r.ok, errore: r.errore, strumenti: (ctx.strumenti || []).map((s) => s.id) }));',
+    ].join('\n'));
+
+    const atteso = messaggioServeClaude([strumentoPerId('github', SCHEDE)]);
+    const chiama = (id) => JSON.parse(execFileSync(process.execPath, [figlio, schede, id], {
+      env: { ...process.env, HOME: base },
+      encoding: 'utf8',
+    }));
+
+    scheda('lettura');
+    for (const id of ['codex', 'gemini', 'ollama']) {
+      const r = chiama(id);
+      assert.deepEqual(r.strumenti, ['github'], `${id}: lo strumento deve essere riconosciuto`);
+      assert.equal(r.ok, false, `${id} non deve poter lavorare`);
+      assert.equal(r.errore, atteso, `${id}: il messaggio di stop`);
+    }
+    scheda('conferma');
+    const conferma = chiama('codex');
+    assert.equal(conferma.ok, false);
+    assert.equal(conferma.errore, atteso);
+
+    // la HOME finta ha ricevuto lei il registro degli usi: quella vera non è stata toccata
+    assert.equal(fs.existsSync(path.join(base, '.config', 'kortex', 'strumenti-uso.json')), true);
+  } finally {
+    fs.rmSync(base, { recursive: true, force: true });
+  }
+});
+
+// 6) L'eredità della lista di lettura nuova: chi si porta dietro quella della 2.5.0 riceve
+// la nuova, chi l'ha modificata resta com'è. Nessun file dell'utente viene mai riscritto.
+test('il bash della 2.5.0 diventa la lista nuova, quello modificato dall utente resta suo', () => {
+  const base = fs.mkdtempSync(path.join(os.tmpdir(), 'kortex-eredita-'));
+  const cartellaCon = (nome, scheda, file = 'github.json') => {
+    const dove = path.join(base, nome);
+    fs.mkdirSync(dove, { recursive: true });
+    fs.writeFileSync(path.join(dove, file), JSON.stringify(scheda));
+    return dove;
+  };
+  try {
+    // la copia nel codice e la scheda su disco devono restare identiche
+    assert.deepEqual(strumentoPerId('github', SCHEDE).bash, BASH_GITHUB);
+
+    // (a) scheda utente con il bash identico alla predefinita 2.5.0: riceve la lista nuova
+    const vecchia = cartellaCon('vecchia', { id: 'github', nome: 'Il mio GitHub', bash: BASH_GITHUB_2_5_0 });
+    const a = carica240(vecchia)[0];
+    assert.deepEqual(a.bash, BASH_GITHUB);
+    assert.equal(a.bash.lettura.includes('Bash(gh api:*)'), false, 'gh api deve sparire');
+    for (const r of [
+      'Bash(git branch --show-current)',
+      'Bash(git branch --list:*)',
+      'Bash(git remote -v)',
+      'Bash(git remote get-url:*)',
+    ]) assert.ok(a.bash.lettura.includes(r), `manca ${r}`);
+    assert.equal(a.bash.lettura.includes('Bash(git branch:*)'), false);
+    assert.equal(a.bash.lettura.includes('Bash(git remote:*)'), false);
+    // il resto della scheda resta suo
+    assert.equal(a.nome, 'Il mio GitHub');
+
+    // le stesse regole in un altro ordine (e con un doppione) contano come "non toccate da lui"
+    const rimescolata = cartellaCon('rimescolata', {
+      id: 'github',
+      bash: {
+        lettura: [...BASH_GITHUB_2_5_0.lettura].reverse().concat('Bash(gh api:*)'),
+        scrittura: ['Bash(git:*)', 'Bash(gh:*)'],
+      },
+    });
+    assert.deepEqual(carica240(rimescolata)[0].bash, BASH_GITHUB);
+
+    // (b) scheda con il bash modificato dall'utente: resta identica, parola per parola
+    const sua = {
+      lettura: [...BASH_GITHUB_2_5_0.lettura, 'Bash(gh gist list:*)'],
+      scrittura: ['Bash(gh:*)', 'Bash(git:*)'],
+    };
+    const mia = cartellaCon('mia', { id: 'github', nome: 'Il mio GitHub', bash: sua });
+    assert.deepEqual(carica240(mia)[0].bash, sua);
+
+    // anche una lista più corta della 2.5.0 è una scelta sua e resta com'è
+    const corta = { lettura: ['Bash(git status:*)'], scrittura: ['Bash(gh:*)', 'Bash(git:*)'] };
+    assert.deepEqual(carica240(cartellaCon('corta', { id: 'github', bash: corta }))[0].bash, corta);
+
+    // e la lista nuova, quando ce l'ha già, non viene toccata
+    assert.deepEqual(carica240(cartellaCon('nuova', { id: 'github', bash: BASH_GITHUB }))[0].bash, BASH_GITHUB);
+
+    // (c) lo scambio vale solo per la scheda github: un altro strumento resta com'è
+    const altro = cartellaCon('altro', { id: 'blender', bash: BASH_GITHUB_2_5_0 }, 'blender.json');
+    assert.deepEqual(carica240(altro)[0].bash, BASH_GITHUB_2_5_0);
+  } finally {
+    fs.rmSync(base, { recursive: true, force: true });
+  }
 });

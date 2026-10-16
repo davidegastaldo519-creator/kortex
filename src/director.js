@@ -4,7 +4,7 @@ import { diffProgetto } from './state.js';
 import { DIR_DB, bloccoConoscenze, aggiungiSoluzione } from './database.js';
 import { bloccoPreferenze, ricorda } from './memoria.js';
 import { bloccoProfilo } from './profili.js';
-import { registraUso, trovaMenzioni, togliMenzioni, contestoStrumenti, argomentiMcp, argomentiBash, controllaStato, avvisoSpento, cartellaStrumenti } from './strumenti.js';
+import { registraUso, trovaMenzioni, togliMenzioni, contestoStrumenti, argomentiMcp, argomentiBash, controllaStato, avvisoSpento, cartellaStrumenti, bashStretto, ripulisciArgsClaude, messaggioServeClaude, spezzaRegole } from './strumenti.js';
 
 // ---------- scelta dell'IA per un ruolo, con riserva automatica ----------
 
@@ -27,6 +27,12 @@ export function ordinaPerStrumenti(lista, ruolo, conStrumenti) {
   return ['claude', ...lista.filter((x) => x !== 'claude')];
 }
 
+// Con uno strumento Bash in lettura o conferma la riserva su un'altra IA non esiste più: solo
+// Claude riceve la lista dei permessi ripulita (vedi `ripulisciArgsClaude`), le altre CLI
+// lavorerebbero senza nessun recinto sui comandi. Quindi i ruoli che toccano lo strumento o
+// hanno Claude, o il compito si ferma. Direttore e pianificatore non c'entrano: leggono soltanto.
+const soloClaude = (ctx, ruolo) => RUOLI_STRUMENTI.includes(ruolo) && bashStretto(ctx?.strumenti);
+
 export function candidati(ruolo, ctx, { preferisci, evita, conStrumenti } = {}) {
   let lista = (ctx.config.ruoli[ruolo] || []).filter(
     (id) => ctx.config.ia[id] && ctx.disponibili[id]?.ok && !ctx.disponibili[id]?.limitato
@@ -35,6 +41,7 @@ export function candidati(ruolo, ctx, { preferisci, evita, conStrumenti } = {}) 
   if (evita && lista.length > 1 && lista.includes(evita)) lista = [...lista.filter((x) => x !== evita), evita];
   // per ultimo, perché con gli strumenti questa scelta vale più di tutte le altre
   const strumenti = conStrumenti === undefined ? argsDegliStrumenti(ctx).length > 0 : conStrumenti;
+  if (soloClaude(ctx, ruolo)) return lista.includes('claude') ? ['claude'] : [];
   return ordinaPerStrumenti(lista, ruolo, strumenti);
 }
 
@@ -53,20 +60,9 @@ const OPZIONI_UNICHE = ['--allowedTools', '--disallowedTools'];
 
 // Spezza un valore come "mcp__github Bash(gh repo view:*),Bash(git log:*)" nelle sue regole.
 // Si taglia sulle virgole e sugli spazi, ma mai dentro le parentesi: "Bash(git status:*)"
-// ha uno spazio dentro e non va rotto a metà.
-function regoleDi(valore) {
-  const fuori = [];
-  let pezzo = '';
-  let dentro = 0;
-  for (const ch of String(valore ?? '')) {
-    if (ch === '(') dentro++;
-    else if (ch === ')' && dentro > 0) dentro--;
-    if (dentro === 0 && (ch === ',' || ch === ' ' || ch === '\t')) { if (pezzo) fuori.push(pezzo); pezzo = ''; continue; }
-    pezzo += ch;
-  }
-  if (pezzo) fuori.push(pezzo);
-  return fuori;
-}
+// ha uno spazio dentro e non va rotto a metà. La regola sta in strumenti.js, dove serve anche
+// alla ripulitura della riga di comando: una sola copia, così le due non possono più discordare.
+const regoleDi = spezzaRegole;
 
 // Unisce gli argomenti del profilo di permessi con quelli degli strumenti esterni.
 // Esportata anche per le prove automatiche: è una funzione pura, non lancia niente.
@@ -93,9 +89,14 @@ export function uniscoArgs(base, aggiunti) {
 const argsDegliStrumenti = (ctx) => ctx.argsStrumenti || ctx.argsMcp || [];
 
 // Gli strumenti esterni li sa usare solo la CLI di Claude: alle altre non si passa niente.
+// Gli argomenti di Claude passano sempre dalla ripulitura: con uno strumento Bash in lettura o
+// conferma la lista dei permessi diventa vera (niente salto dei permessi, solo le regole di
+// lettura), e con qualunque permesso si aggiunge il divieto su gh auth. Vale per TUTTE le
+// chiamate della richiesta, direttore e pianificatore compresi: per loro, che leggono soltanto,
+// cambia solo quel divieto in più.
 const argsDiRuolo = (id, profilo, ctx) =>
   id === 'claude'
-    ? uniscoArgs(ctx.config.profili?.[profilo]?.[id] || [], argsDegliStrumenti(ctx))
+    ? ripulisciArgsClaude(uniscoArgs(ctx.config.profili?.[profilo]?.[id] || [], argsDegliStrumenti(ctx)), ctx.strumenti)
     : ctx.config.profili?.[profilo]?.[id] || [];
 
 export async function eseguiRuolo(ruolo, prompt, ctx, opz = {}) {
@@ -103,6 +104,13 @@ export async function eseguiRuolo(ruolo, prompt, ctx, opz = {}) {
   const lista = candidati(ruolo, ctx, opz);
   if (!lista.length) {
     ui.ruolo(ruolo, 'errore', null);
+    // con uno strumento Bash in lettura o conferma non c'è riserva: si dice perché e si ferma
+    if (soloClaude(ctx, ruolo)) {
+      const motivo = messaggioServeClaude(ctx.strumenti);
+      ui.out(`△ ${motivo}\n`);
+      ui.log(`△ ${ruolo}: ${motivo}`, { ruolo, tipo: 'avviso' });
+      return { ok: false, errore: motivo };
+    }
     return { ok: false, errore: `nessuna IA disponibile per il ruolo ${ruolo}` };
   }
   const chiave = opz.chiaveSessione || ruolo;
@@ -654,6 +662,14 @@ export async function chatDiretta({ id, messaggio, ctx, storia }) {
   const chiaveChat = ctx.chatId ? `chat:${ctx.chatId}` : 'chat';
   const sessione = cfg.resume ? stato.sessione(id, chiaveChat) : null;
   messaggio = await preparaStrumenti(messaggio, ctx);
+  // in chat vale la stessa regola dei ruoli: con uno strumento Bash in lettura o conferma solo
+  // Claude ha la lista dei permessi vera, quindi con un'altra IA ci si ferma qui senza ripiego
+  if (id !== 'claude' && bashStretto(ctx.strumenti)) {
+    const motivo = messaggioServeClaude(ctx.strumenti);
+    ui.out(`△ ${motivo}\n`);
+    ui.log(`△ ${motivo}`, { ia: id, ruolo: 'chat', tipo: 'avviso' });
+    return { ok: false, errore: motivo };
+  }
   let prompt = messaggio + bloccoAllegati(ctx);
   if (!cfg.resume && storia.length) {
     const passato = storia

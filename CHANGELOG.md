@@ -1,5 +1,11 @@
 # Le novità di KORTEX
 
+## 2.5.1
+- **Permessi veri con lettura e conferma**: a Claude viene tolto il salto dei permessi e la lista dei permessi è riscritta da zero con i soli comandi di lettura. Via anche la voce **Bash** nuda, che da sola apriva tutto il terminale. Quello che non è in lista viene rifiutato senza chiedere.
+- **Lista di lettura più stretta**: fuori **gh api** intero, che con **-X** scriveva; al posto di **git remote** e **git branch** generici solo le forme che leggono (**git remote -v**, **git remote get-url**, **git branch --show-current**, **git branch --list**).
+- **gh auth vietato sempre**: con tutti e tre i permessi, **libero** compreso, niente login, logout, token, refresh. L'accesso è già fatto e un comando di accesso lo romperebbe.
+- **Con lettura o conferma lavora solo Claude**: esecutore, operatore e revisore vanno a Claude, l'unico che riceve la lista dei permessi vera. Se Claude non c'è il compito si ferma e te lo dice, invece di passare a un'altra IA senza recinto.
+
 ## 2.5.0
 - **Lo strumento GitHub**: la squadra sa leggere repository, issue, pull request e azioni. Usa **gh** e **git** già collegati sul tuo computer: nessun token nei file.
 - **Lo chiami con @github**: scrivi **@github** nella richiesta, oppure premi **Alt+G** da qualunque pagina per aprire la sua scheda nella pagina STRUMENTI.

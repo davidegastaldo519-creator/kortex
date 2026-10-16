@@ -26,12 +26,13 @@
       "Bash(gh run view:*)",
       "Bash(gh release list:*)",
       "Bash(gh release view:*)",
-      "Bash(gh api:*)",
       "Bash(git status:*)",
       "Bash(git log:*)",
       "Bash(git diff:*)",
-      "Bash(git remote:*)",
-      "Bash(git branch:*)",
+      "Bash(git remote -v)",
+      "Bash(git remote get-url:*)",
+      "Bash(git branch --show-current)",
+      "Bash(git branch --list:*)",
       "Bash(git show:*)"
     ],
     "scrittura": [

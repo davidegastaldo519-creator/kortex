@@ -110,13 +110,104 @@ function predefinite() {
 const CAMPI_A_BLOCCHETTO = ['stato', 'bash'];
 const blocchetto = (x) => !!x && typeof x === 'object' && !Array.isArray(x);
 
+// Le liste Bash della scheda github della 2.5.0, quelle larghe: "gh api" intero (che con -X
+// scrive), "git remote" e "git branch" generici. Restano qui SOLO per riconoscerle: servono a
+// capire se la scheda dell'utente si porta dietro la vecchia predefinita o se l'ha cambiata lui.
+export const BASH_GITHUB_2_5_0 = {
+  lettura: [
+    'Bash(gh repo view:*)',
+    'Bash(gh repo list:*)',
+    'Bash(gh issue list:*)',
+    'Bash(gh issue view:*)',
+    'Bash(gh pr list:*)',
+    'Bash(gh pr view:*)',
+    'Bash(gh pr diff:*)',
+    'Bash(gh pr checks:*)',
+    'Bash(gh run list:*)',
+    'Bash(gh run view:*)',
+    'Bash(gh release list:*)',
+    'Bash(gh release view:*)',
+    'Bash(gh api:*)',
+    'Bash(git status:*)',
+    'Bash(git log:*)',
+    'Bash(git diff:*)',
+    'Bash(git remote:*)',
+    'Bash(git branch:*)',
+    'Bash(git show:*)',
+  ],
+  scrittura: ['Bash(gh:*)', 'Bash(git:*)'],
+};
+
+// Le liste Bash nuove, quelle strette: niente "gh api" (passa per --method e scriverebbe) e,
+// al posto dei comandi git generici, solo le forme che leggono davvero.
+// Questa è la copia nel codice della scheda "strumenti/github.json": le due devono restare
+// identiche, se si cambia una va cambiata anche l'altra.
+export const BASH_GITHUB = {
+  lettura: [
+    'Bash(gh repo view:*)',
+    'Bash(gh repo list:*)',
+    'Bash(gh issue list:*)',
+    'Bash(gh issue view:*)',
+    'Bash(gh pr list:*)',
+    'Bash(gh pr view:*)',
+    'Bash(gh pr diff:*)',
+    'Bash(gh pr checks:*)',
+    'Bash(gh run list:*)',
+    'Bash(gh run view:*)',
+    'Bash(gh release list:*)',
+    'Bash(gh release view:*)',
+    'Bash(git status:*)',
+    'Bash(git log:*)',
+    'Bash(git diff:*)',
+    'Bash(git remote -v)',
+    'Bash(git remote get-url:*)',
+    'Bash(git branch --show-current)',
+    'Bash(git branch --list:*)',
+    'Bash(git show:*)',
+  ],
+  scrittura: ['Bash(gh:*)', 'Bash(git:*)'],
+};
+
+// Due elenchi di regole con lo stesso contenuto: l'ordine non conta e i doppioni non contano.
+// Non lancia mai eccezioni: nel dubbio risponde "diversi", così la scheda dell'utente resta sua.
+function stesseRegole(a, b) {
+  try {
+    const insieme = (x) => new Set((Array.isArray(x) ? x : []).map((r) => String(r).trim()).filter(Boolean));
+    const A = insieme(a);
+    const B = insieme(b);
+    if (A.size !== B.size) return false;
+    for (const v of A) if (!B.has(v)) return false;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// Il campo bash dell'utente è ancora quello copiato dalla 2.5.0?
+// Una lista che l'utente non ha scritto affatto conta come "non toccata da lui".
+function bashVecchiaDi250(sua) {
+  if (!blocchetto(sua)) return false;
+  const ugualeOassente = (x, vecchia) => x === undefined || stesseRegole(x, vecchia);
+  return ugualeOassente(sua.lettura, BASH_GITHUB_2_5_0.lettura)
+    && ugualeOassente(sua.scrittura, BASH_GITHUB_2_5_0.scrittura);
+}
+
 // Unisce la scheda predefinita di KORTEX con quella dell'utente: vince sempre l'utente, la
 // predefinita riempie solo i buchi. Nessun file viene riscritto, la fusione vive in memoria.
-function fondiSchede(pred, sua) {
+//
+// Una sola eccezione, e solo per il campo "bash" della sola scheda "github": la fusione normale
+// terrebbe la lista dell'utente, e quelle copiate nella sua cartella al tempo della 2.5.0 sono
+// troppo larghe (gh api intero, git remote e git branch generici). Nessuno le ha scelte: erano
+// la predefinita di allora. Quindi, se quello che ha l'utente è identico parola per parola alla
+// lista della 2.5.0 (confronto a insiemi: l'ordine non conta), vince la lista nuova e più
+// stretta; se invece l'ha modificata anche solo in parte, resta la sua e KORTEX non ci mette
+// mano. Il file dell'utente non viene mai riscritto: tutto avviene in memoria.
+function fondiSchede(pred, sua, id) {
   const fuori = { ...pred, ...sua };
   for (const k of CAMPI_A_BLOCCHETTO) {
     if (blocchetto(pred?.[k]) && blocchetto(sua?.[k])) fuori[k] = { ...pred[k], ...sua[k] };
   }
+  if (id === 'github' && bashVecchiaDi250(sua?.bash)) fuori.bash = { ...BASH_GITHUB };
   return fuori;
 }
 
@@ -141,7 +232,7 @@ export function caricaStrumenti(cartella = DIR_STRUMENTI) {
       const grezza = JSON.parse(fs.readFileSync(percorso, 'utf8'));
       const id = String(grezza.id || path.basename(nome, '.json')).toLowerCase();
       const pred = base[id];
-      fuori.push(normalizzaScheda(pred ? fondiSchede(pred.grezza, grezza) : grezza, percorso));
+      fuori.push(normalizzaScheda(pred ? fondiSchede(pred.grezza, grezza, id) : grezza, percorso));
     } catch (e) {
       console.error(`Strumenti: salto la scheda ${nome}, non riesco a leggerla (${e.message}).`);
     }
@@ -400,6 +491,144 @@ export function argomentiBash(strumenti) {
     return fuori;
   } catch {
     return [];
+  }
+}
+
+// ---------- la lista dei permessi vera: la riga di comando di Claude ripulita ----------
+
+// I permessi dal più stretto al più largo: fra più strumenti della stessa richiesta vince
+// sempre il più stretto, perché le opzioni della CLI sono una per comando, non una per strumento.
+const ORDINE_PERMESSI = ['lettura', 'conferma', 'libero'];
+
+// Gli strumenti della richiesta che hanno comandi Bash, e il permesso più stretto fra loro.
+// Un permesso scritto in un modo che non conosciamo vale 'conferma', come la riserva delle schede.
+// Nessuno strumento con Bash -> { strumenti: [], permesso: null }. Non lancia mai eccezioni.
+export function permessoBash(strumenti) {
+  try {
+    const conBash = (strumenti || []).filter((s) => s?.bash);
+    if (!conBash.length) return { strumenti: [], permesso: null };
+    const diRiserva = ORDINE_PERMESSI.indexOf('conferma');
+    let indice = ORDINE_PERMESSI.length - 1;
+    for (const s of conBash) {
+      const i = ORDINE_PERMESSI.indexOf(s.permessi);
+      indice = Math.min(indice, i < 0 ? diRiserva : i);
+    }
+    return { strumenti: conBash, permesso: ORDINE_PERMESSI[indice] };
+  } catch {
+    return { strumenti: [], permesso: null };
+  }
+}
+
+// Vero quando il permesso più stretto della richiesta è 'lettura' o 'conferma': è il caso in cui
+// la riga di comando di Claude va ripulita e nessun'altra IA può lavorare sul compito.
+export function bashStretto(strumenti) {
+  const p = permessoBash(strumenti).permesso;
+  return p === 'lettura' || p === 'conferma';
+}
+
+// Tutto quello che Claude può usare quando il permesso è stretto: le regole di sola lettura degli
+// strumenti con Bash, più i nomi mcp__ degli strumenti della richiesta che hanno un server MCP.
+// Senza doppioni e senza voci vuote. Non lancia mai eccezioni.
+export function regoleLetturaStrumenti(strumenti) {
+  const fuori = [];
+  try {
+    const metti = (r) => { const t = String(r || '').trim(); if (t && !fuori.includes(t)) fuori.push(t); };
+    for (const s of strumenti || []) for (const r of s?.bash?.lettura || []) metti(r);
+    for (const s of strumenti || []) if (s?.mcp?.command) metti(`mcp__${s.id}`);
+  } catch { /* nel dubbio si permette meno, non di più */ }
+  return fuori;
+}
+
+// Spezza il valore di --allowedTools o --disallowedTools nelle sue regole: si taglia sulle virgole
+// e sugli spazi, ma mai dentro le parentesi, perché "Bash(git status:*)" ha uno spazio dentro e
+// non va rotto a metà.
+export function spezzaRegole(valore) {
+  const fuori = [];
+  let pezzo = '';
+  let dentro = 0;
+  for (const ch of String(valore ?? '')) {
+    if (ch === '(') dentro++;
+    else if (ch === ')' && dentro > 0) dentro--;
+    if (dentro === 0 && (ch === ',' || ch === ' ' || ch === '\t')) { if (pezzo) fuori.push(pezzo); pezzo = ''; continue; }
+    pezzo += ch;
+  }
+  if (pezzo) fuori.push(pezzo);
+  return fuori;
+}
+
+// Il divieto che vale sempre, con qualunque permesso compreso 'libero': l'accesso a GitHub è già
+// fatto e un comando di accesso (login, logout, token, refresh) lo romperebbe.
+export const DIVIETO_AUTH = 'Bash(gh auth:*)';
+
+// Toglie dagli argomenti tutte le occorrenze di un'opzione con il suo valore e restituisce i
+// valori che aveva. Modifica l'elenco che riceve.
+function cavaOpzione(args, opzione) {
+  const valori = [];
+  for (let i = args.length - 2; i >= 0; i--) {
+    if (args[i] !== opzione) continue;
+    valori.unshift(args[i + 1]);
+    args.splice(i, 2);
+  }
+  return valori;
+}
+
+// La riga di comando di Claude ripulita, da usare per TUTTE le chiamate della richiesta.
+//
+// Perché la gabbia è togliere --dangerously-skip-permissions e non scrivere una lista di permessi:
+// provato sulla CLI, --allowedTools NON limita niente, aggiunge soltanto (pre-approva). In una
+// sessione non interattiva (-p) la vera protezione è il rifiuto d'ufficio: tutto ciò che non è
+// approvato viene negato senza chiedere. --dangerously-skip-permissions spegne proprio quello,
+// quindi finché c'è non esiste nessuna lista che possa chiudere una porta.
+//
+// Con permessi 'lettura' o 'conferma':
+//   - via --dangerously-skip-permissions, così torna il rifiuto d'ufficio;
+//   - --allowedTools viene riscritto da zero con le sole regole di lettura degli strumenti della
+//     richiesta più le loro voci mcp__: così sparisce anche la voce "Bash" nuda, che da sola
+//     darebbe tutto lo strumento Bash, e ogni comando fuori lista viene rifiutato;
+//   - --permission-mode acceptEdits resta dov'è, perché i ruoli che scrivono devono poter
+//     modificare i file del progetto; se l'abbiamo tolto dal profilo in autonomia totale (che
+//     aveva solo il salto dei permessi) lo mettiamo noi, altrimenti quel ruolo non scriverebbe più.
+// Con qualunque permesso, 'libero' compreso: si aggiunge il divieto su gh auth ai divieti che
+// c'erano già, senza perderne nessuno.
+// Se nella richiesta non c'è nessuno strumento con Bash non si cambia niente.
+// Non lancia mai eccezioni: nel dubbio restituisce gli argomenti di partenza.
+export function ripulisciArgsClaude(args, strumenti) {
+  const partenza = [...(args || [])];
+  try {
+    const { permesso } = permessoBash(strumenti);
+    if (!permesso) return partenza;
+    const out = [...partenza];
+    if (permesso !== 'libero') {
+      let salto = false;
+      for (let i = out.length - 1; i >= 0; i--) {
+        if (out[i] === '--dangerously-skip-permissions') { out.splice(i, 1); salto = true; }
+      }
+      cavaOpzione(out, '--allowedTools');
+      const regole = regoleLetturaStrumenti(strumenti);
+      if (regole.length) out.push('--allowedTools', regole.join(','));
+      if (salto && !out.includes('--permission-mode')) out.push('--permission-mode', 'acceptEdits');
+    }
+    const divieti = [];
+    for (const v of cavaOpzione(out, '--disallowedTools')) {
+      for (const r of spezzaRegole(v)) if (!divieti.includes(r)) divieti.push(r);
+    }
+    if (!divieti.includes(DIVIETO_AUTH)) divieti.push(DIVIETO_AUTH);
+    out.push('--disallowedTools', divieti.join(','));
+    return out;
+  } catch {
+    return partenza;
+  }
+}
+
+// Il messaggio da far vedere nell'OUTPUT quando il compito si ferma perché serve Claude e Claude
+// non c'è (o è al limite). Nomina gli strumenti che hanno imposto la regola.
+// Non lancia mai eccezioni.
+export function messaggioServeClaude(strumenti) {
+  try {
+    const nomi = (strumenti || []).filter((s) => s?.bash).map((s) => s?.nome || s?.id).filter(Boolean);
+    return `${nomi.join(', ') || 'lo strumento'} in lettura/conferma richiede Claude, riprova quando torna disponibile`;
+  } catch {
+    return 'lo strumento in lettura/conferma richiede Claude, riprova quando torna disponibile';
   }
 }
 
